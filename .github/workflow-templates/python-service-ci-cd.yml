@@ -1,0 +1,421 @@
+# Python Service CI/CD Pipeline Template
+# This template provides comprehensive CI/CD for Python-based Codessa Platform services
+
+name: Python Service CI/CD
+
+on:
+  push:
+    branches: [main, develop, 'feature/*', 'hotfix/*']
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Code Quality and Testing
+  quality:
+    name: Code Quality & Testing
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Code formatting check (Black)
+      run: black --check --diff .
+    
+    - name: Import sorting check (isort)
+      run: isort --check-only --diff .
+    
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Type checking with mypy
+      run: mypy .
+      continue-on-error: true
+    
+    - name: Security check with bandit
+      run: bandit -r . -f json -o bandit-report.json
+      continue-on-error: true
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ \
+          --cov=src \
+          --cov-report=xml \
+          --cov-report=html \
+          --junitxml=pytest-results.xml
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ \
+          --cov=src \
+          --cov-append \
+          --cov-report=xml \
+          --cov-report=html
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+    
+    - name: Upload test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-${{ matrix.python-version }}
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          pytest-results.xml
+          htmlcov/
+          bandit-report.json
+
+  # Security Scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: quality
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install safety
+    
+    - name: Run Safety check
+      run: safety check --json --output safety-report.json
+      continue-on-error: true
+    
+    - name: Run Snyk security scan
+      uses: snyk/actions/python@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+    
+    - name: OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: ${{ github.event.repository.name }}
+        path: '.'
+        format: 'HTML'
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          reports/
+
+  # Build and Package
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [quality, security]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build wheel
+    
+    - name: Build Python package
+      run: |
+        python -m build
+    
+    - name: Create build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: python-package
+        path: |
+          dist/
+          requirements.txt
+        retention-days: 7
+    
+    # Docker Build
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging-${{ github.event.repository.name }}.codessa.dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Deploy to Kubernetes
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Update deployment with new image
+        kubectl set image deployment/${{ github.event.repository.name }} \
+          app=${{ needs.build.outputs.image-tag }} \
+          --namespace=staging
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/${{ github.event.repository.name }} \
+          --namespace=staging --timeout=300s
+    
+    - name: Run smoke tests
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pytest tests/smoke/ --env=staging
+      env:
+        STAGING_URL: https://staging-${{ github.event.repository.name }}.codessa.dev
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          🐍 ${{ github.event.repository.name }} (Python) deployed to staging
+          📦 Image: ${{ needs.build.outputs.image-tag }}
+          🔗 URL: https://staging-${{ github.event.repository.name }}.codessa.dev
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    environment:
+      name: production
+      url: https://${{ github.event.repository.name }}.codessa.dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Pre-deployment checks
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Check cluster health
+        kubectl get nodes
+        kubectl get pods --namespace=production
+        
+        # Verify staging deployment is healthy
+        curl -f https://staging-${{ github.event.repository.name }}.codessa.dev/health
+    
+    - name: Deploy to Production
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Create backup of current deployment
+        kubectl get deployment ${{ github.event.repository.name }} \
+          --namespace=production -o yaml > backup-deployment.yaml
+        
+        # Update deployment with new image
+        kubectl set image deployment/${{ github.event.repository.name }} \
+          app=${{ needs.build.outputs.image-tag }} \
+          --namespace=production
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/${{ github.event.repository.name }} \
+          --namespace=production --timeout=600s
+    
+    - name: Post-deployment verification
+      run: |
+        # Health check
+        curl -f https://${{ github.event.repository.name }}.codessa.dev/health
+        
+        # Run production smoke tests
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pytest tests/production/ --env=production
+      env:
+        PRODUCTION_URL: https://${{ github.event.repository.name }}.codessa.dev
+    
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        export KUBECONFIG=kubeconfig
+        kubectl rollout undo deployment/${{ github.event.repository.name }} \
+          --namespace=production
+        kubectl rollout status deployment/${{ github.event.repository.name }} \
+          --namespace=production --timeout=300s
+    
+    - name: Notify production deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          🎉 ${{ github.event.repository.name }} (Python) deployed to production!
+          📦 Image: ${{ needs.build.outputs.image-tag }}
+          🔗 URL: https://${{ github.event.repository.name }}.codessa.dev
+          📊 Status: ${{ job.status }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Performance Testing
+  performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install performance testing tools
+      run: |
+        pip install locust pytest-benchmark
+    
+    - name: Run load tests
+      run: |
+        locust --headless --users 100 --spawn-rate 10 \
+          --host https://staging-${{ github.event.repository.name }}.codessa.dev \
+          --run-time 5m --html performance-report.html
+      env:
+        TARGET_URL: https://staging-${{ github.event.repository.name }}.codessa.dev
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: performance-report.html
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    
+    steps:
+    - name: Clean up old images
+      run: |
+        echo "Cleaning up old container images..."
+        # Container registry cleanup logic here
+    
+    - name: Clean up artifacts
+      uses: geekyeggo/delete-artifact@v2
+      with:
+        name: |
+          python-package
+          test-results-*
+          security-reports
+        failOnError: false
