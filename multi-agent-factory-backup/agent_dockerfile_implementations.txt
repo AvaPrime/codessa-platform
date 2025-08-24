@@ -1,0 +1,35 @@
+# Generic Agent Dockerfile
+# File: infra/docker/agent.Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY agents/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+ 
+# Copy application code
+COPY agents/ ./agents/
+COPY memory/ ./memory/
+COPY config/ ./config/
+COPY orchestrator/ ./orchestrator/
+
+# Set build argument for agent role
+ARG AGENT_ROLE=doc_writer
+ENV AGENT_ROLE=${AGENT_ROLE}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD python -c "import redis; r=redis.Redis(host='redis'); r.ping()" || exit 1
+
+# Create startup script
+RUN echo '#!/bin/bash\nset -e\necho "Starting ${AGENT_ROLE} agent..."\npython agents/${AGENT_ROLE}/agent.py' > /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]

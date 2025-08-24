@@ -1,0 +1,100 @@
+# routing.yaml
+default: codellama:13b
+
+rules:
+  - type: memorize
+    agent: whisperer
+    model: None
+    cost: 0.0
+  - type: recall
+    agent: whisperer
+    model: None
+    cost: 0.0
+  - type: ask
+    agent: whisperer
+    model: mistral:7b
+    cost: 0.02
+  - type: consciousness
+    agent: whisperer
+    model: mistral:7b
+    cost: 0.01
+  - type: compose
+    agent: architect
+    model: deepseek-coder:7b
+    cost: 0.05
+  - type: refactor
+    agent: architect
+    model: deepseek-coder:7b
+    cost: 0.05
+  - type: build
+    agent: builder
+    model: None
+    cost: 0.0
+  - type: run
+    agent: builder
+    model: None
+    cost: 0.0
+  - type: test
+    agent: validator
+    model: None
+    cost: 0.0
+  - type: tests
+    agent: validator
+    model: None
+    cost: 0.0
+  - type: lint
+    agent: validator
+    model: None
+    cost: 0.0
+  - type: script
+    agent: script_runner
+    model: None
+    cost: 0.03
+  - type: watch
+    agent: soul_watcher
+    model: None
+    cost: 0.0
+  - type: introspect
+    agent: soul_watcher
+    model: None
+    cost: 0.0
+  - type: patterns
+    agent: soul_watcher
+    model: None
+    cost: 0.0
+  - type: harmony
+    agent: soul_watcher
+    model: None
+    cost: 0.0
+  - type: dream
+    agent: dream_agent
+    model: mistral:7b
+    cost: 0.03
+  - type: explore
+    agent: dream_agent
+    model: mistral:7b
+    cost: 0.02
+  - type: synthesize
+    agent: dream_agent
+    model: mistral:7b
+    cost: 0.04
+  - type: vision
+    agent: dream_agent
+    model: mistral:7b
+    cost: 0.02
+  - type: inspire
+    agent: dream_agent
+    model: mistral:7b
+    cost: 0.02
+  - type: execute
+    agent: workflow_engine
+    model: None
+    cost: 0.0
+  - type: workflow_status
+    agent: workflow_engine
+    model: None
+    cost: 0.0
+  - type: workflow_list
+    agent: workflow_engine
+    model: None
+    cost: 0.0

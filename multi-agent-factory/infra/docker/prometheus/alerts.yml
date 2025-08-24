@@ -1,0 +1,189 @@
+groups:
+  - name: multi-agent-factory.rules
+    rules:
+      # API Health Alerts
+      - alert: APIDown
+        expr: up{job="maf-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Multi-Agent Factory API is down"
+          description: "The MAF API has been down for more than 1 minute."
+
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is {{ $value }}s for the last 5 minutes."
+
+      - alert: HighAPIErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      # Agent Health Alerts
+      - alert: AgentDown
+        expr: up{job="maf-agents"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent {{ $labels.instance }} is down"
+          description: "Agent {{ $labels.instance }} has been down for more than 2 minutes."
+
+      - alert: HighAgentErrorRate
+        expr: sum by (agent_type) (rate(agent_tasks_failed_total[5m])) / sum by (agent_type) (rate(agent_tasks_processed_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate for {{ $labels.agent_type }} agent"
+          description: "{{ $labels.agent_type }} agent error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+
+      - alert: AgentQueueBacklog
+        expr: agent_queue_depth > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent queue backlog detected"
+          description: "{{ $labels.agent_type }} agent has {{ $value }} tasks in queue for more than 10 minutes."
+
+      - alert: AgentHighMemoryUsage
+        expr: agent_memory_usage_bytes > 1073741824  # 1GB
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage for {{ $labels.agent_type }} agent"
+          description: "{{ $labels.agent_type }} agent is using {{ $value | humanizeBytes }} of memory."
+
+      # Database Alerts
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database has been down for more than 1 minute."
+
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value | humanizePercentage }} of maximum."
+
+      - alert: SlowDatabaseQueries
+        expr: pg_stat_activity_max_tx_duration > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Longest running query has been active for {{ $value }}s."
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache has been down for more than 1 minute."
+
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} of maximum."
+
+      - alert: RedisConnectionsHigh
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis connection count"
+          description: "Redis has {{ $value }} connected clients."
+
+      # NATS Alerts
+      - alert: NATSDown
+        expr: up{job="nats"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NATS is down"
+          description: "NATS message broker has been down for more than 1 minute."
+
+      - alert: NATSHighMessageBacklog
+        expr: nats_jetstream_stream_messages > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High NATS message backlog"
+          description: "NATS stream {{ $labels.stream_name }} has {{ $value }} pending messages."
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} ({{ $labels.mountpoint }})."
+
+      # Security Alerts
+      - alert: HighAuthenticationFailures
+        expr: sum(rate(auth_failures_total[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High authentication failure rate"
+          description: "{{ $value }} authentication failures per second in the last 5 minutes."
+
+      - alert: SuspiciousAPIActivity
+        expr: sum(rate(http_requests_total{status="429"}[5m])) > 50
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate limiting activity"
+          description: "{{ $value }} rate-limited requests per second, possible attack."

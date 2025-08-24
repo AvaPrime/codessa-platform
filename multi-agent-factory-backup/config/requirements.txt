@@ -1,0 +1,2 @@
+pydantic[dotenv]==2.11.7
+pydantic-settings==2.1.0

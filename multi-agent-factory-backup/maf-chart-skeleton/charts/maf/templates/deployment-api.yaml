@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maf-api
+  labels: {{- include "maf.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app: maf
+      component: api
+  template:
+    metadata:
+      labels:
+        app: maf
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.global.registry }}/{{ .Values.api.image }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef: {name: maf-router}
+            - configMapRef: {name: maf-storage}
+            - secretRef: {name: maf-runtime}
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "{{ .Values.api.env.OTEL_EXPORTER_OTLP_ENDPOINT }}"
+            - name: ENABLE_OPA
+              value: "{{ .Values.api.env.ENABLE_OPA }}"
+            - name: MAF_ENABLE_TEMPORAL
+              value: "{{ .Values.api.env.MAF_ENABLE_TEMPORAL }}"
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+{{ toYaml .Values.api.resources | indent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maf-api
+  labels: {{- include "maf.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: maf
+    component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maf-api
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+spec:
+  tls:
+    - hosts: [ {{ .Values.ingress.host | quote }} ]
+      secretName: {{ .Values.ingress.tlsSecret | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: maf-api
+                port: { number: 80 }
+{{- end }}

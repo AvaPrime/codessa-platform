@@ -1,0 +1,43 @@
+# File: config/nats/streams.yaml
+# Purpose: Operational JetStream configuration for tasks, results, and dead letters.
+
+streams:
+  - name: TASKS
+    subjects: ["tasks.*"]
+    retention: workqueue
+    max_msgs: 100000
+    max_age: 86400              # 1 day
+    max_msg_size: 8388608       # 8MB
+    duplicate_window: 120       # dedup window (seconds)
+    storage: file
+    replicas: 1
+    discard: old
+
+  - name: RESULTS
+    subjects: ["results.*"]
+    retention: limits
+    max_msgs: 1000000
+    max_age: 604800             # 7 days
+    storage: file
+    replicas: 1
+    discard: old
+
+  - name: DEAD_LETTERS
+    subjects: ["dead_letter.>"]
+    retention: limits
+    max_msgs: 50000
+    max_age: 2592000            # 30 days
+    storage: file
+    replicas: 1
+    discard: old
+
+consumers:
+  - stream_name: TASKS
+    name: TASKS_ALL
+    durable_name: tasks_all
+    ack_policy: explicit
+    ack_wait: 30
+    max_deliver: 3
+    filter_subject: "tasks.*"
+    replay_policy: instant
+    max_ack_pending: 1000

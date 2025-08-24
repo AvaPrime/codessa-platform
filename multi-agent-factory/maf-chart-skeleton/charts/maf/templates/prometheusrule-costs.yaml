@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: maf-costs
+spec:
+  groups:
+    - name: maf.costs
+      rules:
+        - alert: MAFTenantBudgetExceeded
+          expr: sum(rate(maf_tokens_cost_usd[5m])) by (tenant) > 0.01
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            description: "Tenant budget burn rate too high"

@@ -1,0 +1,608 @@
+# Pod Security Standards
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multi-agent-factory
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/name: multi-agent-factory
+    app.kubernetes.io/component: namespace
+
+---
+# Security Context Constraints (OpenShift) / Pod Security Policy equivalent
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: maf-restricted
+  labels:
+    app.kubernetes.io/name: maf-restricted
+    app.kubernetes.io/component: security
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  runAsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+
+---
+# Network Security Policy for API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maf-api-security
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-security
+    app.kubernetes.io/component: security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: maf-api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: agent
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats
+    ports:
+    - protocol: TCP
+      port: 4222
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# RBAC for API Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maf-api-security
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-security
+    app.kubernetes.io/component: security
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maf-api-security
+  namespace: multi-agent-factory
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: maf-api-security
+  namespace: multi-agent-factory
+subjects:
+- kind: ServiceAccount
+  name: maf-api-security
+  namespace: multi-agent-factory
+roleRef:
+  kind: Role
+  name: maf-api-security
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Security Scanning Job
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: security-scan
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-scan
+    app.kubernetes.io/component: security
+spec:
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: security-scan
+            app.kubernetes.io/component: security
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: OnFailure
+          serviceAccountName: security-scanner
+          containers:
+          - name: trivy-scanner
+            image: aquasec/trivy:latest
+            imagePullPolicy: Always
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              echo "Starting security scan at $(date)"
+              
+              # Update Trivy database
+              trivy image --download-db-only
+              
+              # Scan container images
+              IMAGES=(
+                "postgres:15-alpine"
+                "redis:7-alpine"
+                "nats:2.10-alpine"
+                "your-registry/maf-api:latest"
+                "your-registry/maf-agent:latest"
+              )
+              
+              for image in "${IMAGES[@]}"; do
+                echo "Scanning image: $image"
+                trivy image --format json --output /reports/$(echo $image | tr '/' '_' | tr ':' '_').json $image
+                trivy image --severity HIGH,CRITICAL $image
+              done
+              
+              # Scan Kubernetes cluster
+              trivy k8s --report summary cluster
+              
+              # Generate summary report
+              echo "Security scan completed at $(date)"
+              echo "Reports saved to /reports/"
+              ls -la /reports/
+            volumeMounts:
+            - name: reports
+              mountPath: /reports
+            - name: trivy-cache
+              mountPath: /root/.cache/trivy
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 2000m
+                memory: 4Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: reports
+            persistentVolumeClaim:
+              claimName: security-reports-pvc
+          - name: trivy-cache
+            emptyDir: {}
+
+---
+# Security Reports PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: security-reports-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-reports
+    app.kubernetes.io/component: security
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Security Scanner Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: security-scanner
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-scanner
+    app.kubernetes.io/component: security
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: security-scanner
+  labels:
+    app.kubernetes.io/name: security-scanner
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "nodes"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+  verbs: ["get", "list"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list"]
+- apiGroups: ["policy"]
+  resources: ["podsecuritypolicies"]
+  verbs: ["get", "list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: security-scanner
+  labels:
+    app.kubernetes.io/name: security-scanner
+    app.kubernetes.io/component: security
+subjects:
+- kind: ServiceAccount
+  name: security-scanner
+  namespace: multi-agent-factory
+roleRef:
+  kind: ClusterRole
+  name: security-scanner
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Admission Controller Webhook Configuration
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionWebhook
+metadata:
+  name: maf-security-webhook
+  labels:
+    app.kubernetes.io/name: maf-security-webhook
+    app.kubernetes.io/component: security
+webhooks:
+- name: security.maf.io
+  clientConfig:
+    service:
+      name: maf-security-webhook
+      namespace: multi-agent-factory
+      path: "/validate"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+  namespaceSelector:
+    matchLabels:
+      name: multi-agent-factory
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+
+---
+# Security Webhook Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: maf-security-webhook
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-security-webhook
+    app.kubernetes.io/component: security
+spec:
+  selector:
+    app.kubernetes.io/name: maf-security-webhook
+  ports:
+  - name: webhook
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  type: ClusterIP
+
+---
+# Security Webhook Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maf-security-webhook
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-security-webhook
+    app.kubernetes.io/component: security
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: maf-security-webhook
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: maf-security-webhook
+        app.kubernetes.io/component: security
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-security-webhook
+      containers:
+      - name: webhook
+        image: your-registry/maf-security-webhook:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+          name: webhook
+          protocol: TCP
+        env:
+        - name: TLS_CERT_FILE
+          value: /etc/certs/tls.crt
+        - name: TLS_PRIVATE_KEY_FILE
+          value: /etc/certs/tls.key
+        - name: WEBHOOK_PORT
+          value: "8443"
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/certs
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: certs
+        secret:
+          secretName: maf-webhook-certs
+
+---
+# Security Webhook Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maf-security-webhook
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-security-webhook
+    app.kubernetes.io/component: security
+
+---
+# Security Policies ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-policies
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-policies
+    app.kubernetes.io/component: security
+data:
+  pod-security-policy.yaml: |
+    # Pod Security Standards
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      annotations:
+        # Enforce restricted security context
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+  
+  network-policy.yaml: |
+    # Default deny all traffic
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-all
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Ingress
+      - Egress
+  
+  rbac-policy.yaml: |
+    # Principle of least privilege
+    # - Grant minimum required permissions
+    # - Use specific resource names when possible
+    # - Avoid cluster-wide permissions
+    # - Regular audit of permissions
+  
+  image-policy.yaml: |
+    # Container image security requirements
+    # - Use official base images
+    # - Scan images for vulnerabilities
+    # - Use specific image tags (not latest)
+    # - Sign and verify images
+    # - Use private registries for sensitive workloads
+
+---
+# Security Monitoring ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: security-monitor
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-monitor
+    app.kubernetes.io/component: security
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: security
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+# Security Alerts PrometheusRule
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: security-alerts
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: security-alerts
+    app.kubernetes.io/component: security
+spec:
+  groups:
+  - name: security.rules
+    rules:
+    - alert: PodSecurityViolation
+      expr: increase(pod_security_violations_total[5m]) > 0
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod security policy violation detected"
+        description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} violated security policy"
+    
+    - alert: UnauthorizedAPIAccess
+      expr: increase(apiserver_audit_total{verb!~"get|list|watch"}[5m]) > 10
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Unusual API access pattern detected"
+        description: "High number of non-read API calls: {{ $value }}"
+    
+    - alert: PrivilegedContainerDetected
+      expr: kube_pod_container_status_running{container=~".*"} and on(pod, namespace) kube_pod_spec_containers_security_context_privileged == 1
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Privileged container detected"
+        description: "Privileged container {{ $labels.container }} in pod {{ $labels.pod }}"
+    
+    - alert: RootUserContainer
+      expr: kube_pod_container_status_running and on(pod, namespace) kube_pod_spec_containers_security_context_run_as_user == 0
+      for: 0m
+      labels:
+        severity: high
+      annotations:
+        summary: "Container running as root user"
+        description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is running as root"
+    
+    - alert: SecurityScanFailed
+      expr: up{job="security-scan"} == 0
+      for: 24h
+      labels:
+        severity: warning
+      annotations:
+        summary: "Security scan job failed"
+        description: "Security scanning job has been down for more than 24 hours"

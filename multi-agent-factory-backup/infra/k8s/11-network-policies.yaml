@@ -1,0 +1,584 @@
+# Default Deny All Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: default-deny-all
+    app.kubernetes.io/component: network-policy
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow DNS Resolution
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: allow-dns
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# API Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maf-api-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: maf-api
+      app.kubernetes.io/component: api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow traffic from monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow traffic from same namespace (agents)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: agent
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow connection to database
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow connection to Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow connection to NATS
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats
+    ports:
+    - protocol: TCP
+      port: 4222
+  # Allow connection to Jaeger
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: jaeger
+    ports:
+    - protocol: UDP
+      port: 6831
+    - protocol: TCP
+      port: 14268
+  # Allow HTTPS outbound for LLM APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow HTTP outbound for health checks
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+
+---
+# Database Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: postgres-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/component: database
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow connections from API
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: maf-api
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow connections from monitoring (postgres exporter)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 9187
+  # Allow connections from backup jobs
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgres-backup
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  # Allow outbound for replication (if needed)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Redis Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: redis-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/component: cache
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow connections from API
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: maf-api
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow connections from agents
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: agent
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 9121
+  egress:
+  # Redis typically doesn't need outbound connections
+  - to: []
+    ports: []
+
+---
+# NATS Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nats-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: nats-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/component: messaging
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow connections from API
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: maf-api
+    ports:
+    - protocol: TCP
+      port: 4222
+  # Allow connections from agents
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: agent
+    ports:
+    - protocol: TCP
+      port: 4222
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 8222
+    - protocol: TCP
+      port: 7777
+  # Allow cluster communication (for future clustering)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats
+    ports:
+    - protocol: TCP
+      port: 6222
+  egress:
+  # Allow cluster communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats
+    ports:
+    - protocol: TCP
+      port: 6222
+
+---
+# Agent Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maf-agents-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-agents-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: agent
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow health checks from API
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: maf-api
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow connection to NATS
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nats
+    ports:
+    - protocol: TCP
+      port: 4222
+  # Allow connection to Redis (for caching)
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow connection to API
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: maf-api
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow connection to Jaeger
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: jaeger
+    ports:
+    - protocol: UDP
+      port: 6831
+    - protocol: TCP
+      port: 14268
+  # Allow HTTPS outbound for LLM APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow HTTP outbound
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+
+---
+# Monitoring Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: monitoring-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: monitoring
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow access from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 9090  # Prometheus
+    - protocol: TCP
+      port: 3000  # Grafana
+    - protocol: TCP
+      port: 16686 # Jaeger
+  # Allow internal monitoring communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 16686
+  egress:
+  # Allow scraping all pods in namespace
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8000  # API metrics
+    - protocol: TCP
+      port: 8080  # Agent metrics
+    - protocol: TCP
+      port: 9187  # Postgres exporter
+    - protocol: TCP
+      port: 9121  # Redis exporter
+    - protocol: TCP
+      port: 7777  # NATS exporter
+  # Allow access to Kubernetes API
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow access to external alerting services
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 587  # SMTP
+
+---
+# Cross-namespace communication for ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: allow-ingress-controller
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: maf-api
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+
+---
+# Network Policy for backup operations
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backup-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backup-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-backup
+  policyTypes:
+  - Egress
+  egress:
+  # Allow connection to database
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow connection to external backup storage
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# Network Policy for external API access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: external-api-access
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: external-api-access
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/component
+      operator: In
+      values: ["api", "agent"]
+  policyTypes:
+  - Egress
+  egress:
+  # Allow HTTPS to external LLM APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow HTTP for health checks and webhooks
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+  # Allow SMTP for notifications
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 587
+    - protocol: TCP
+      port: 465
+    - protocol: TCP
+      port: 25
+
+---
+# Calico Global Network Policy (if using Calico CNI)
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: maf-global-policy
+  labels:
+    app.kubernetes.io/name: maf-global-policy
+    app.kubernetes.io/component: network-policy
+spec:
+  # Apply to MAF namespace only
+  namespaceSelector: name == "multi-agent-factory"
+  types:
+  - Ingress
+  - Egress
+  # Default deny, but allow specific traffic
+  ingress:
+  - action: Allow
+    protocol: TCP
+    source:
+      namespaceSelector: name == "ingress-nginx"
+    destination:
+      ports: [8000]
+  - action: Allow
+    protocol: TCP
+    source:
+      namespaceSelector: name == "monitoring"
+  egress:
+  - action: Allow
+    protocol: TCP
+    destination:
+      ports: [443, 80]  # HTTPS/HTTP
+  - action: Allow
+    protocol: UDP
+    destination:
+      ports: [53]  # DNS
+  - action: Allow
+    protocol: TCP
+    destination:
+      namespaceSelector: name == "multi-agent-factory"
+  # Log denied traffic for debugging
+  - action: Log
+  - action: Deny

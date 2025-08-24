@@ -1,0 +1,38 @@
+### Health Check
+GET http://localhost:8000/
+
+### List Agents
+GET http://localhost:8000/agents
+
+### Submit Documentation Task
+POST http://localhost:8000/tasks
+Content-Type: application/json
+
+{
+  "task_id": "doc-001",
+  "role": "doc_writer", 
+  "payload": {
+    "doc_type": "api",
+    "content": "Create API documentation for the Multi-Agent Factory",
+    "format": "markdown"
+  },
+  "priority": 1
+}
+
+### Submit Frontend Development Task  
+POST http://localhost:8000/tasks
+Content-Type: application/json
+
+{
+  "task_id": "frontend-001",
+  "role": "frontend_dev",
+  "payload": {
+    "framework": "react",
+    "component_type": "functional", 
+    "requirements": ["responsive", "dark mode", "accessibility"]
+  },
+  "priority": 2
+}
+
+### Get Task Status
+GET http://localhost:8000/tasks/doc-001

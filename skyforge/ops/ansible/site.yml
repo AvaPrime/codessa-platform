@@ -1,0 +1,345 @@
+---
+# Main Ansible Playbook for AI Development Infrastructure
+# This playbook orchestrates the complete setup of the AI development environment
+
+- name: AI Development Infrastructure Setup
+  hosts: all
+  gather_facts: true
+  become: true
+  
+  vars:
+    # Global configuration
+    setup_timestamp: "{{ ansible_date_time.iso8601 }}"
+    playbook_version: "1.0.0"
+    
+  pre_tasks:
+    - name: Display setup information
+      debug:
+        msg: |
+          Starting AI Development Infrastructure Setup
+          Timestamp: {{ setup_timestamp }}
+          Playbook Version: {{ playbook_version }}
+          Target Host: {{ inventory_hostname }}
+          Host Groups: {{ group_names }}
+    
+    - name: Ensure system is up to date
+      apt:
+        update_cache: true
+        upgrade: dist
+        autoremove: true
+        autoclean: true
+      when: ansible_os_family == "Debian"
+      
+    - name: Install essential packages
+      package:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+          - vim
+          - tmux
+          - unzip
+          - jq
+          - tree
+          - python3
+          - python3-pip
+        state: present
+        
+    - name: Create AI development directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+      loop:
+        - /opt/ai-dev
+        - /opt/ai-dev/data
+        - /opt/ai-dev/logs
+        - /opt/ai-dev/config
+        - /opt/ai-dev/scripts
+        - /opt/ai-dev/backups
+        
+  tasks:
+    # Common setup for all hosts
+    - name: Apply common configuration
+      include_role:
+        name: common
+      tags: [common, always]
+      
+    # Docker setup for container orchestration
+    - name: Setup Docker
+      include_role:
+        name: docker
+      when: "'docker_hosts' in group_names"
+      tags: [docker]
+      
+    # Tailscale for secure networking
+    - name: Setup Tailscale VPN
+      include_role:
+        name: tailscale
+      when: "'tailscale_network' in group_names"
+      tags: [tailscale, networking]
+      
+    # Ray head node setup
+    - name: Setup Ray Head Node
+      include_role:
+        name: ray_head
+      when: "'ray_head' in group_names"
+      tags: [ray, ray_head]
+      
+    # Ray worker node setup
+    - name: Setup Ray Worker Node
+      include_role:
+        name: ray_worker
+      when: "'ray_workers' in group_names"
+      tags: [ray, ray_worker]
+      
+    # Monitoring stack (Prometheus, Grafana)
+    - name: Setup Monitoring
+      include_role:
+        name: monitoring
+      when: "'monitoring' in group_names"
+      tags: [monitoring]
+      
+    # GitHub Actions runner
+    - name: Setup GitHub Runner
+      include_role:
+        name: github_runner
+      when: "'github_runners' in group_names and github_runner_token is defined"
+      tags: [github_runner, ci_cd]
+      
+    # Backup configuration
+    - name: Setup Backups
+      include_role:
+        name: backups
+      when: "'backup_hosts' in group_names"
+      tags: [backups]
+      
+    # Security policies (OPA)
+    - name: Setup Security Policies
+      include_role:
+        name: opa_policy
+      when: "'security_policy' in group_names"
+      tags: [security, opa]
+      
+  post_tasks:
+    - name: Verify services are running
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - docker
+        - tailscaled
+      ignore_errors: true
+      
+    - name: Create setup completion marker
+      file:
+        path: /opt/ai-dev/.ansible_setup_complete
+        state: touch
+        mode: '0644'
+        
+    - name: Log setup completion
+      lineinfile:
+        path: /opt/ai-dev/logs/setup.log
+        line: "{{ setup_timestamp }}: Ansible setup completed successfully"
+        create: true
+        mode: '0644'
+        
+    - name: Display setup summary
+      debug:
+        msg: |
+          AI Development Infrastructure Setup Complete!
+          
+          Host: {{ inventory_hostname }}
+          IP Address: {{ ansible_default_ipv4.address }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          
+          Installed Roles:
+          {% for group in group_names %}
+          - {{ group }}
+          {% endfor %}
+          
+          Services Status:
+          - Docker: {{ 'Installed' if 'docker_hosts' in group_names else 'Not Installed' }}
+          - Tailscale: {{ 'Installed' if 'tailscale_network' in group_names else 'Not Installed' }}
+          - Ray: {{ 'Head Node' if 'ray_head' in group_names else ('Worker Node' if 'ray_workers' in group_names else 'Not Installed') }}
+          - Monitoring: {{ 'Installed' if 'monitoring' in group_names else 'Not Installed' }}
+          - GitHub Runner: {{ 'Installed' if 'github_runners' in group_names else 'Not Installed' }}
+          
+          Next Steps:
+          1. Verify services: systemctl status docker tailscaled
+          2. Check Ray cluster: ray status
+          3. Access monitoring: http://{{ ansible_default_ipv4.address }}:3000
+          4. Connect via Tailscale: {{ inventory_hostname }}.{{ tailscale_tailnet }}
+
+# Separate play for GPU worker specific setup
+- name: GPU Worker Specific Setup
+  hosts: gpu_workers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Install NVIDIA drivers and CUDA (if not present)
+      block:
+        - name: Check if NVIDIA drivers are installed
+          command: nvidia-smi
+          register: nvidia_check
+          failed_when: false
+          changed_when: false
+          
+        - name: Install NVIDIA drivers
+          apt:
+            name:
+              - nvidia-driver-535
+              - nvidia-cuda-toolkit
+            state: present
+          when: nvidia_check.rc != 0
+          notify: reboot_required
+          
+    - name: Install GPU monitoring tools
+      pip:
+        name:
+          - gpustat
+          - nvidia-ml-py3
+        state: present
+        
+    - name: Create GPU monitoring script
+      copy:
+        content: |
+          #!/bin/bash
+          # GPU monitoring script
+          while true; do
+            echo "$(date): $(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits)" >> /opt/ai-dev/logs/gpu_usage.log
+            sleep 30
+          done
+        dest: /opt/ai-dev/scripts/gpu_monitor.sh
+        mode: '0755'
+        
+    - name: Create GPU monitoring service
+      copy:
+        content: |
+          [Unit]
+          Description=GPU Monitor
+          After=network.target
+          
+          [Service]
+          Type=simple
+          ExecStart=/opt/ai-dev/scripts/gpu_monitor.sh
+          Restart=always
+          RestartSec=10
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/gpu-monitor.service
+        
+    - name: Enable GPU monitoring service
+      systemd:
+        name: gpu-monitor
+        enabled: true
+        state: started
+        daemon_reload: true
+        
+  handlers:
+    - name: reboot_required
+      reboot:
+        msg: "Rebooting to load NVIDIA drivers"
+        reboot_timeout: 300
+
+# Separate play for development environment setup
+- name: Development Environment Setup
+  hosts: development
+  gather_facts: true
+  become: true
+  
+  vars:
+    dev_user: aidev
+    
+  tasks:
+    - name: Create development user
+      user:
+        name: "{{ dev_user }}"
+        groups: [sudo, docker]
+        shell: /bin/bash
+        create_home: true
+        
+    - name: Install development tools
+      package:
+        name:
+          - code
+          - nodejs
+          - npm
+          - python3-venv
+          - jupyter
+        state: present
+        
+    - name: Setup VS Code extensions
+      become_user: "{{ dev_user }}"
+      command: |
+        code --install-extension ms-python.python
+        code --install-extension ms-vscode-remote.remote-ssh
+        code --install-extension ms-vscode-remote.remote-containers
+        code --install-extension ms-toolsai.jupyter
+      ignore_errors: true
+      
+    - name: Create development workspace
+      file:
+        path: "/home/{{ dev_user }}/workspace"
+        state: directory
+        owner: "{{ dev_user }}"
+        group: "{{ dev_user }}"
+        mode: '0755'
+        
+    - name: Setup auto-shutdown (if enabled)
+      cron:
+        name: "Auto shutdown"
+        minute: "0"
+        hour: "{{ auto_shutdown_time.split(':')[0] }}"
+        job: "/sbin/shutdown -h now"
+        user: root
+      when: auto_shutdown_enabled | default(false)
+
+# Final validation play
+- name: Infrastructure Validation
+  hosts: all
+  gather_facts: false
+  become: true
+  
+  tasks:
+    - name: Run health checks
+      uri:
+        url: "http://localhost:8000/health"
+        method: GET
+        timeout: 10
+      register: health_check
+      failed_when: false
+      
+    - name: Validate Ray cluster connectivity
+      command: ray status
+      register: ray_status
+      failed_when: false
+      when: "'ray_head' in group_names or 'ray_workers' in group_names"
+      
+    - name: Generate infrastructure report
+      template:
+        src: infrastructure_report.j2
+        dest: /opt/ai-dev/infrastructure_report.txt
+        mode: '0644'
+      vars:
+        report_timestamp: "{{ ansible_date_time.iso8601 }}"
+        health_status: "{{ health_check.status | default('unknown') }}"
+        ray_cluster_status: "{{ ray_status.stdout | default('not configured') }}"
+        
+    - name: Display final status
+      debug:
+        msg: |
+          Infrastructure Setup Validation Complete!
+          
+          Health Check: {{ 'PASS' if health_check.status == 200 else 'FAIL' }}
+          Ray Cluster: {{ 'CONNECTED' if ray_status.rc == 0 else 'DISCONNECTED' }}
+          
+          Report saved to: /opt/ai-dev/infrastructure_report.txt
+          
+          Infrastructure is ready for AI development workloads!

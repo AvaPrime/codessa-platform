@@ -1,0 +1,371 @@
+version: "3.9"
+
+# ---------- Shared config ----------
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+
+  # Postgres with pgvector
+  db:
+    image: ankane/pgvector:v0.5.1
+    env_file:
+      - ../../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-factory}
+    # No published ports in prod; accessible to other services via "db:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      # uncomment to auto-run migrations:
+      # - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-user} -d $${POSTGRES_DB:-factory} -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  encryption_key:
+    file: ./secrets/encryption_key.txt
+
+# ---------- Shared config ----------
+x-env-common: &env_common
+  PYTHONPATH: /app
+  PORT: "8000"
+  WORKERS: "2"
+  THREADS: "1"
+  TIMEOUT: "60"
+  KEEP_ALIVE: "5"
+  POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+  NATS_URL: nats://nats:4222
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+  # Redis cache
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    # No published port in prod; reachable as "redis:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+
+  # NATS with JetStream
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222", "--max_payload", "8MB", "--max_connections", "1000"]
+    # Client port not published; internal clients use "nats:4222".
+    # Bind monitoring to localhost only (adjust/remove if needed).
+    ports:
+      - "127.0.0.1:8222:8222"
+    volumes:
+      - natsdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz | grep -q 'ok'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # API (production)
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+      target: runtime
+    image: docker-api:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      ENV: prod
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 30s
+
+  # API (developer profile with live reload & code mounts)
+  api-dev:
+    profiles: ["dev"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+      target: runtime
+    image: docker-api:dev
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      ENV: dev
+      WORKERS: "1"
+      TIMEOUT: "0"
+    command: >
+      bash -lc "uvicorn main:app --host 0.0.0.0 --port ${PORT} --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../api:/app
+      - ../../memory:/app/memory
+      - ../../llm:/app/llm
+      - ../../orchestrator:/app/orchestrator
+      - ../../config:/app/config
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+
+  # ---------- Agents ----------
+  doc-writer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: doc_writer
+    image: maf-agent-doc-writer:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: doc_writer
+      ENV: prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+    # scale with: docker compose up --scale doc-writer=2
+
+  frontend-dev:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: frontend_dev
+    image: maf-agent-frontend-dev:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: frontend_dev
+      ENV: prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+
+  backend-dev:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: backend_dev
+    image: maf-agent-backend-dev:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: backend_dev
+      ENV: prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+
+  compliance-checker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: compliance_checker
+    image: maf-agent-compliance-checker:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: compliance_checker
+      ENV: prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+
+  qa-tester:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: qa_tester
+    image: maf-agent-qa-tester:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: qa_tester
+      ENV: prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+
+  # ---------- Observability (opt-in via `--profile obs`) ----------
+  jaeger:
+    profiles: ["obs"]
+    image: jaegertracing/all-in-one:1.50
+    ports:
+      - "16686:16686"     # UI
+      - "6831:6831/udp"   # agent (UDP)
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks: [appnet]
+    logging: *logging
+
+  prometheus:
+    profiles: ["obs"]
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=200h
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
+    networks: [appnet]
+    logging: *logging
+
+  alertmanager:
+    profiles: ["obs"]
+    image: prom/alertmanager:v0.26.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=http://localhost:9093
+    networks: [appnet]
+    logging: *logging
+
+  grafana:
+    profiles: ["obs"]
+    image: grafana/grafana:10.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    networks: [appnet]
+    logging: *logging
+
+volumes:
+  dbdata: {}
+  redisdata: {}
+  natsdata: {}
+  prometheus_data: {}
+  grafana_data: {}
+  alertmanager_data: {}
+
+networks:
+  appnet: {}

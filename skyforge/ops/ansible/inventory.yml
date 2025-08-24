@@ -1,0 +1,222 @@
+# Ansible Inventory for AI Development Infrastructure
+# This file defines all hosts and groups for configuration management
+
+all:
+  vars:
+    # Global variables
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_python_interpreter: /usr/bin/python3
+    
+    # Network configuration
+    tailscale_tailnet: "your-tailnet.ts.net"
+    private_network_range: "10.0.0.0/16"
+    
+    # Service ports
+    ray_head_port: 8265
+    ray_worker_port_min: 10001
+    ray_worker_port_max: 10100
+    prometheus_port: 9090
+    grafana_port: 3000
+    jupyter_port: 8888
+    
+    # Security settings
+    fail2ban_enabled: true
+    ufw_enabled: true
+    ssh_port: 22
+    
+    # Monitoring settings
+    monitoring_retention_days: 30
+    log_retention_days: 7
+    
+    # Development settings
+    development_mode: false
+    auto_shutdown_enabled: false
+    
+  children:
+    # Control plane hosts
+    control_plane:
+      hosts:
+        control-plane-01:
+          ansible_host: "{{ terraform_outputs.control_plane_public_ip | default('10.0.0.10') }}"
+          private_ip: "{{ terraform_outputs.control_plane_private_ip | default('10.0.0.10') }}"
+          server_id: "{{ terraform_outputs.control_plane_id | default('') }}"
+          server_type: cx31
+          location: nbg1
+          roles:
+            - ray_head
+            - monitoring
+            - docker
+            - tailscale
+            - github_runner
+          
+          # Service-specific variables
+          ray_head_node: true
+          ray_dashboard_host: "0.0.0.0"
+          ray_dashboard_port: "{{ ray_head_port }}"
+          
+          # Monitoring configuration
+          prometheus_config_dir: /opt/monitoring/prometheus
+          grafana_config_dir: /opt/monitoring/grafana
+          
+          # Storage configuration
+          data_volume_device: "{{ terraform_outputs.data_volume_device | default('/dev/sdb') }}"
+          data_mount_point: /opt/ai-dev/data
+          
+    # GPU worker hosts (Runpod or other)
+    gpu_workers:
+      hosts:
+        # These will be dynamically populated by Runpod or other GPU providers
+        # Example static entry:
+        # gpu-worker-01:
+        #   ansible_host: "runpod-worker-ip"
+        #   private_ip: "10.0.0.20"
+        #   gpu_type: "NVIDIA RTX 4090"
+        #   gpu_count: 1
+        #   roles:
+        #     - ray_worker
+        #     - docker
+        #     - tailscale
+      vars:
+        ray_worker_node: true
+        ray_head_address: "{{ hostvars['control-plane-01']['private_ip'] }}:10001"
+        
+    # Development hosts (optional local or cloud dev instances)
+    development:
+      hosts:
+        # dev-instance-01:
+        #   ansible_host: "dev-ip"
+        #   private_ip: "10.0.0.30"
+        #   roles:
+        #     - docker
+        #     - tailscale
+      vars:
+        development_mode: true
+        auto_shutdown_enabled: true
+        auto_shutdown_time: "22:00"
+        
+    # Monitoring hosts (subset of control_plane)
+    monitoring:
+      hosts:
+        control-plane-01:
+      vars:
+        prometheus_retention_time: "{{ monitoring_retention_days }}d"
+        grafana_admin_password: "{{ vault_grafana_admin_password | default('admin') }}"
+        alertmanager_enabled: true
+        
+    # Ray cluster hosts
+    ray_cluster:
+      children:
+        ray_head:
+          hosts:
+            control-plane-01:
+        ray_workers:
+          hosts:
+            # Dynamically populated GPU workers
+          vars:
+            ray_worker_resources: '{"GPU": 1}'
+            
+    # Docker hosts
+    docker_hosts:
+      children:
+        control_plane:
+        gpu_workers:
+        development:
+      vars:
+        docker_compose_version: "2.21.0"
+        docker_log_driver: json-file
+        docker_log_max_size: 10m
+        docker_log_max_file: 3
+        
+    # Tailscale network hosts
+    tailscale_network:
+      children:
+        control_plane:
+        gpu_workers:
+        development:
+      vars:
+        tailscale_auth_key: "{{ vault_tailscale_auth_key }}"
+        tailscale_exit_node: false
+        tailscale_advertise_routes: "{{ private_network_range }}"
+        
+    # GitHub runner hosts
+    github_runners:
+      hosts:
+        control-plane-01:
+      vars:
+        github_runner_token: "{{ vault_github_runner_token }}"
+        github_repo_url: "{{ vault_github_repo_url }}"
+        github_runner_labels: "self-hosted,linux,x64,ai-dev"
+        github_runner_name: "ai-dev-runner-{{ inventory_hostname }}"
+        
+    # Backup hosts
+    backup_hosts:
+      children:
+        control_plane:
+      vars:
+        backup_schedule: "0 2 * * *"  # Daily at 2 AM
+        backup_retention_days: 7
+        backup_destination: "/opt/backups"
+        backup_encryption_enabled: true
+        
+    # Security policy hosts
+    security_policy:
+      children:
+        control_plane:
+        gpu_workers:
+      vars:
+        opa_policy_enabled: true
+        security_scan_enabled: true
+        vulnerability_scan_schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+        
+# Host group mappings for easier management
+# These can be used with ansible-playbook -l <group>
+ungrouped: {}  # No ungrouped hosts
+
+# Dynamic inventory integration
+# This section can be populated by Terraform outputs or external scripts
+terraform_managed:
+  children:
+    control_plane:
+  vars:
+    managed_by: terraform
+    
+runpod_managed:
+  children:
+    gpu_workers:
+  vars:
+    managed_by: runpod
+    provider: runpod
+    
+# Environment-specific overrides
+production:
+  children:
+    control_plane:
+  vars:
+    environment: production
+    development_mode: false
+    auto_shutdown_enabled: false
+    monitoring_enabled: true
+    backup_enabled: true
+    
+staging:
+  hosts:
+    # staging-control-plane:
+    #   ansible_host: "staging-ip"
+  vars:
+    environment: staging
+    development_mode: true
+    auto_shutdown_enabled: true
+    monitoring_enabled: true
+    backup_enabled: false
+    
+development_env:
+  children:
+    development:
+  vars:
+    environment: development
+    development_mode: true
+    auto_shutdown_enabled: true
+    monitoring_enabled: false
+    backup_enabled: false

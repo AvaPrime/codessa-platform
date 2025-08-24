@@ -1,0 +1,613 @@
+---
+# Common role - Basic system configuration and essential packages
+# This role provides the foundation for all AI development infrastructure
+
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+  when: set_hostname | default(true)
+  
+- name: Update /etc/hosts with hostname
+  lineinfile:
+    path: /etc/hosts
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    regexp: '^127\.0\.1\.1'
+    
+- name: Configure timezone
+  timezone:
+    name: "{{ system_timezone | default('UTC') }}"
+    
+- name: Install essential system packages
+  package:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - vim
+      - nano
+      - tmux
+      - screen
+      - unzip
+      - zip
+      - tar
+      - gzip
+      - jq
+      - tree
+      - rsync
+      - lsof
+      - netstat-nat
+      - iotop
+      - ncdu
+      - fail2ban
+      - ufw
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - software-properties-common
+      - apt-transport-https
+    state: present
+    update_cache: true
+    
+- name: Install Python and development tools
+  package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - cmake
+      - pkg-config
+      - libssl-dev
+      - libffi-dev
+      - libxml2-dev
+      - libxslt1-dev
+      - zlib1g-dev
+    state: present
+    
+- name: Upgrade pip to latest version
+  pip:
+    name: pip
+    state: latest
+    executable: pip3
+    
+- name: Install essential Python packages
+  pip:
+    name:
+      - setuptools
+      - wheel
+      - virtualenv
+      - pipenv
+      - poetry
+      - requests
+      - pyyaml
+      - psutil
+      - rich
+      - click
+      - typer
+    state: present
+    executable: pip3
+    
+- name: Configure UFW firewall
+  block:
+    - name: Reset UFW to defaults
+      ufw:
+        state: reset
+        
+    - name: Set UFW default policies
+      ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: 'incoming', policy: 'deny' }
+        - { direction: 'outgoing', policy: 'allow' }
+        
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: "{{ ansible_ssh_port | default('22') }}"
+        proto: tcp
+        comment: 'SSH access'
+        
+    - name: Allow common AI development ports
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop:
+        - { port: '8000', proto: 'tcp', comment: 'Ray Dashboard' }
+        - { port: '8265', proto: 'tcp', comment: 'Ray Head Node' }
+        - { port: '10001', proto: 'tcp', comment: 'Ray Worker' }
+        - { port: '8888', proto: 'tcp', comment: 'Jupyter Notebook' }
+        - { port: '8080', proto: 'tcp', comment: 'Development Server' }
+        - { port: '3000', proto: 'tcp', comment: 'Grafana' }
+        - { port: '9090', proto: 'tcp', comment: 'Prometheus' }
+        - { port: '41641', proto: 'udp', comment: 'Tailscale' }
+        
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        
+- name: Configure fail2ban
+  block:
+    - name: Create fail2ban SSH jail
+      copy:
+        content: |
+          [sshd]
+          enabled = true
+          port = {{ ansible_ssh_port | default('22') }}
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 3
+          bantime = 3600
+          findtime = 600
+        dest: /etc/fail2ban/jail.d/sshd.conf
+        mode: '0644'
+        
+    - name: Start and enable fail2ban
+      systemd:
+        name: fail2ban
+        state: started
+        enabled: true
+        
+- name: Configure SSH security
+  block:
+    - name: Backup original SSH config
+      copy:
+        src: /etc/ssh/sshd_config
+        dest: /etc/ssh/sshd_config.backup
+        remote_src: true
+        force: false
+        
+    - name: Configure SSH security settings
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: true
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?AuthorizedKeysFile', line: 'AuthorizedKeysFile .ssh/authorized_keys' }
+        - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
+        - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+        - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+        - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
+      notify: restart_ssh
+      
+- name: Create AI development user
+  user:
+    name: "{{ ai_dev_user | default('aidev') }}"
+    groups: [sudo]
+    shell: /bin/bash
+    create_home: true
+    password: "{{ ai_dev_user_password | default('!') }}"
+    
+- name: Add SSH key for AI development user
+  authorized_key:
+    user: "{{ ai_dev_user | default('aidev') }}"
+    key: "{{ ai_dev_ssh_public_key }}"
+    state: present
+  when: ai_dev_ssh_public_key is defined
+  
+- name: Configure sudo for AI development user
+  lineinfile:
+    path: /etc/sudoers.d/aidev
+    line: "{{ ai_dev_user | default('aidev') }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    mode: '0440'
+    validate: 'visudo -cf %s'
+    
+- name: Create system directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - /opt/ai-dev
+    - /opt/ai-dev/bin
+    - /opt/ai-dev/config
+    - /opt/ai-dev/data
+    - /opt/ai-dev/logs
+    - /opt/ai-dev/scripts
+    - /opt/ai-dev/backups
+    - /opt/ai-dev/tmp
+    - /var/log/ai-dev
+    
+- name: Create user workspace directories
+  file:
+    path: "/home/{{ ai_dev_user | default('aidev') }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ai_dev_user | default('aidev') }}"
+    group: "{{ ai_dev_user | default('aidev') }}"
+  loop:
+    - workspace
+    - .config
+    - .local/bin
+    - projects
+    - notebooks
+    - datasets
+    - models
+    
+- name: Configure system limits
+  pam_limits:
+    domain: "{{ item.domain }}"
+    limit_type: "{{ item.type }}"
+    limit_item: "{{ item.item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { domain: '*', type: 'soft', item: 'nofile', value: '65536' }
+    - { domain: '*', type: 'hard', item: 'nofile', value: '65536' }
+    - { domain: '*', type: 'soft', item: 'nproc', value: '32768' }
+    - { domain: '*', type: 'hard', item: 'nproc', value: '32768' }
+    
+- name: Configure kernel parameters
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { name: 'vm.max_map_count', value: '262144' }
+    - { name: 'fs.file-max', value: '2097152' }
+    - { name: 'net.core.somaxconn', value: '65535' }
+    - { name: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+    
+- name: Install Node.js (for development tools)
+  block:
+    - name: Add NodeSource repository key
+      apt_key:
+        url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+        state: present
+        
+    - name: Add NodeSource repository
+      apt_repository:
+        repo: "deb https://deb.nodesource.com/node_18.x {{ ansible_distribution_release }} main"
+        state: present
+        
+    - name: Install Node.js
+      package:
+        name: nodejs
+        state: present
+        update_cache: true
+        
+    - name: Install global npm packages
+      npm:
+        name: "{{ item }}"
+        global: true
+        state: present
+      loop:
+        - yarn
+        - pm2
+        - nodemon
+        - typescript
+        - '@types/node'
+        
+- name: Configure log rotation
+  copy:
+    content: |
+      /opt/ai-dev/logs/*.log {
+          daily
+          missingok
+          rotate 30
+          compress
+          delaycompress
+          notifempty
+          create 0644 root root
+          postrotate
+              systemctl reload rsyslog > /dev/null 2>&1 || true
+          endscript
+      }
+      
+      /var/log/ai-dev/*.log {
+          daily
+          missingok
+          rotate 30
+          compress
+          delaycompress
+          notifempty
+          create 0644 root root
+      }
+    dest: /etc/logrotate.d/ai-dev
+    mode: '0644'
+    
+- name: Create system monitoring script
+  copy:
+    content: |
+      #!/bin/bash
+      # System monitoring script for AI development infrastructure
+      
+      LOG_FILE="/var/log/ai-dev/system-monitor.log"
+      TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+      
+      # System metrics
+      CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+      MEMORY_USAGE=$(free | grep Mem | awk '{printf "%.2f", $3/$2 * 100.0}')
+      DISK_USAGE=$(df -h / | awk 'NR==2{printf "%s", $5}')
+      LOAD_AVG=$(uptime | awk -F'load average:' '{print $2}')
+      
+      # Log metrics
+      echo "$TIMESTAMP - CPU: ${CPU_USAGE}%, Memory: ${MEMORY_USAGE}%, Disk: ${DISK_USAGE}, Load: ${LOAD_AVG}" >> "$LOG_FILE"
+      
+      # Check for high resource usage
+      if (( $(echo "$CPU_USAGE > 90" | bc -l) )); then
+          echo "$TIMESTAMP - WARNING: High CPU usage: ${CPU_USAGE}%" >> "$LOG_FILE"
+      fi
+      
+      if (( $(echo "$MEMORY_USAGE > 90" | bc -l) )); then
+          echo "$TIMESTAMP - WARNING: High memory usage: ${MEMORY_USAGE}%" >> "$LOG_FILE"
+      fi
+    dest: /opt/ai-dev/scripts/system-monitor.sh
+    mode: '0755'
+    
+- name: Create system monitoring cron job
+  cron:
+    name: "System monitoring"
+    minute: "*/5"
+    job: "/opt/ai-dev/scripts/system-monitor.sh"
+    user: root
+    
+- name: Create health check endpoint
+  copy:
+    content: |
+      #!/usr/bin/env python3
+      """
+      Simple health check endpoint for AI development infrastructure
+      """
+      
+      import json
+      import psutil
+      import subprocess
+      from http.server import HTTPServer, BaseHTTPRequestHandler
+      from datetime import datetime
+      
+      class HealthCheckHandler(BaseHTTPRequestHandler):
+          def do_GET(self):
+              if self.path == '/health':
+                  self.send_response(200)
+                  self.send_header('Content-type', 'application/json')
+                  self.end_headers()
+                  
+                  # Gather system metrics
+                  health_data = {
+                      'status': 'healthy',
+                      'timestamp': datetime.now().isoformat(),
+                      'system': {
+                          'cpu_percent': psutil.cpu_percent(interval=1),
+                          'memory_percent': psutil.virtual_memory().percent,
+                          'disk_percent': psutil.disk_usage('/').percent,
+                          'load_average': psutil.getloadavg(),
+                          'uptime': psutil.boot_time()
+                      },
+                      'services': self.check_services()
+                  }
+                  
+                  self.wfile.write(json.dumps(health_data, indent=2).encode())
+              else:
+                  self.send_response(404)
+                  self.end_headers()
+                  
+          def check_services(self):
+              services = {}
+              service_list = ['docker', 'tailscaled', 'ssh']
+              
+              for service in service_list:
+                  try:
+                      result = subprocess.run(
+                          ['systemctl', 'is-active', service],
+                          capture_output=True,
+                          text=True
+                      )
+                      services[service] = result.stdout.strip()
+                  except Exception as e:
+                      services[service] = f'error: {str(e)}'
+                      
+              return services
+              
+          def log_message(self, format, *args):
+              # Suppress default logging
+              pass
+      
+      if __name__ == '__main__':
+          server = HTTPServer(('0.0.0.0', 8000), HealthCheckHandler)
+          print('Health check server running on port 8000')
+          server.serve_forever()
+    dest: /opt/ai-dev/scripts/health-check.py
+    mode: '0755'
+    
+- name: Create health check service
+  copy:
+    content: |
+      [Unit]
+      Description=AI Dev Health Check Service
+      After=network.target
+      
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/python3 /opt/ai-dev/scripts/health-check.py
+      Restart=always
+      RestartSec=10
+      User=root
+      
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/ai-dev-health.service
+    
+- name: Enable and start health check service
+  systemd:
+    name: ai-dev-health
+    enabled: true
+    state: started
+    daemon_reload: true
+    
+- name: Create environment configuration
+  copy:
+    content: |
+      # AI Development Environment Configuration
+      export AI_DEV_HOME="/opt/ai-dev"
+      export AI_DEV_USER="{{ ai_dev_user | default('aidev') }}"
+      export PATH="$AI_DEV_HOME/bin:$HOME/.local/bin:$PATH"
+      export PYTHONPATH="$AI_DEV_HOME:$PYTHONPATH"
+      
+      # Python configuration
+      export PYTHONDONTWRITEBYTECODE=1
+      export PYTHONUNBUFFERED=1
+      
+      # Development settings
+      export EDITOR=vim
+      export PAGER=less
+      
+      # AI/ML specific
+      export CUDA_VISIBLE_DEVICES="{{ cuda_visible_devices | default('all') }}"
+      export OMP_NUM_THREADS="{{ omp_num_threads | default(ansible_processor_vcpus) }}"
+      
+      # Aliases
+      alias ll='ls -alF'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias grep='grep --color=auto'
+      alias fgrep='fgrep --color=auto'
+      alias egrep='egrep --color=auto'
+      alias ..='cd ..'
+      alias ...='cd ../..'
+      alias h='history'
+      alias c='clear'
+      alias df='df -h'
+      alias du='du -h'
+      alias free='free -h'
+      alias ps='ps aux'
+      alias top='htop'
+      alias mount='mount | column -t'
+      
+      # AI development aliases
+      alias jup='jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root'
+      alias ray-status='ray status'
+      alias ray-dashboard='echo "Ray Dashboard: http://$(hostname -I | awk "{print \$1}"):8265"'
+      alias gpu-status='nvidia-smi'
+      alias gpu-watch='watch -n 1 nvidia-smi'
+    dest: /etc/profile.d/ai-dev.sh
+    mode: '0644'
+    
+- name: Set up bash completion
+  package:
+    name: bash-completion
+    state: present
+    
+- name: Configure vim for development
+  copy:
+    content: |
+      " Basic vim configuration for AI development
+      set number
+      set relativenumber
+      set tabstop=4
+      set shiftwidth=4
+      set expandtab
+      set autoindent
+      set smartindent
+      set hlsearch
+      set incsearch
+      set ignorecase
+      set smartcase
+      set showmatch
+      set ruler
+      set laststatus=2
+      set wildmenu
+      set wildmode=longest,list,full
+      set backspace=indent,eol,start
+      
+      " Syntax highlighting
+      syntax on
+      filetype plugin indent on
+      
+      " Color scheme
+      colorscheme desert
+      
+      " Python specific settings
+      autocmd FileType python setlocal tabstop=4 shiftwidth=4 expandtab
+      autocmd FileType yaml setlocal tabstop=2 shiftwidth=2 expandtab
+      autocmd FileType json setlocal tabstop=2 shiftwidth=2 expandtab
+    dest: /etc/vim/vimrc.local
+    mode: '0644'
+    
+- name: Create system information script
+  copy:
+    content: |
+      #!/bin/bash
+      # System information display script
+      
+      echo "=== AI Development Infrastructure Status ==="
+      echo "Hostname: $(hostname)"
+      echo "IP Address: $(hostname -I | awk '{print $1}')"
+      echo "OS: $(lsb_release -d | cut -f2)"
+      echo "Kernel: $(uname -r)"
+      echo "Uptime: $(uptime -p)"
+      echo "Load Average: $(uptime | awk -F'load average:' '{print $2}')"
+      echo ""
+      
+      echo "=== System Resources ==="
+      echo "CPU: $(nproc) cores"
+      echo "Memory: $(free -h | grep Mem | awk '{print $2}')"
+      echo "Disk: $(df -h / | awk 'NR==2{print $2}')"
+      echo ""
+      
+      echo "=== Services Status ==="
+      for service in docker tailscaled ssh ai-dev-health; do
+          status=$(systemctl is-active $service 2>/dev/null || echo "not-found")
+          echo "$service: $status"
+      done
+      echo ""
+      
+      echo "=== Network Interfaces ==="
+      ip -4 addr show | grep -E '^[0-9]+:|inet' | awk '/^[0-9]+:/ {iface=$2} /inet/ {print iface, $2}'
+      echo ""
+      
+      echo "=== AI Development Environment ==="
+      echo "Python: $(python3 --version 2>/dev/null || echo 'Not installed')"
+      echo "Node.js: $(node --version 2>/dev/null || echo 'Not installed')"
+      echo "Docker: $(docker --version 2>/dev/null || echo 'Not installed')"
+      echo "Ray: $(ray --version 2>/dev/null || echo 'Not installed')"
+      
+      if command -v nvidia-smi &> /dev/null; then
+          echo ""
+          echo "=== GPU Information ==="
+          nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+      fi
+    dest: /opt/ai-dev/scripts/system-info.sh
+    mode: '0755'
+    
+- name: Add system info to MOTD
+  copy:
+    content: |
+      #!/bin/bash
+      /opt/ai-dev/scripts/system-info.sh
+    dest: /etc/update-motd.d/99-ai-dev
+    mode: '0755'
+    
+- name: Remove default MOTD files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/update-motd.d/10-help-text
+    - /etc/update-motd.d/50-motd-news
+    - /etc/update-motd.d/80-esm
+    - /etc/update-motd.d/95-hwe-eol
+    
+- name: Create completion marker
+  file:
+    path: /opt/ai-dev/.common_setup_complete
+    state: touch
+    mode: '0644'
+    
+handlers:
+  - name: restart_ssh
+    systemd:
+      name: ssh
+      state: restarted

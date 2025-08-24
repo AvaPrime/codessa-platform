@@ -1,0 +1,140 @@
+{
+  "name": "aetherion-soulforge",
+  "displayName": "Aetherion SoulForge",
+  "description": "VS Code extension for Aetherion - The Living Garden of Code & Consciousness",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "onCommand:aetherion.sendToWhisperer",
+    "onCommand:aetherion.askQuestion",
+    "onCommand:aetherion.dreamFromContext",
+    "onCommand:aetherion.inspectSoul",
+    "onCommand:aetherion.runWorkflow"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aetherion.sendToWhisperer",
+        "title": "Memorize in Aetherion",
+        "category": "Aetherion"
+      },
+      {
+        "command": "aetherion.askQuestion",
+        "title": "Ask Aetherion",
+        "category": "Aetherion"
+      },
+      {
+        "command": "aetherion.dreamFromContext",
+        "title": "Dream from Context",
+        "category": "Aetherion"
+      },
+      {
+        "command": "aetherion.inspectSoul", 
+        "title": "Inspect Soul",
+        "category": "Aetherion"
+      },
+      {
+        "command": "aetherion.runWorkflow",
+        "title": "Run Workflow",
+        "category": "Aetherion"
+      },
+      {
+        "command": "aetherion.openPanel",
+        "title": "Open Aetherion Panel",
+        "category": "Aetherion"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorHasSelection",
+          "command": "aetherion.sendToWhisperer",
+          "group": "aetherion@1"
+        },
+        {
+          "when": "editorHasSelection", 
+          "command": "aetherion.dreamFromContext",
+          "group": "aetherion@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aetherion.sendToWhisperer"
+        },
+        {
+          "command": "aetherion.askQuestion"
+        },
+        {
+          "command": "aetherion.dreamFromContext"
+        },
+        {
+          "command": "aetherion.inspectSoul"
+        },
+        {
+          "command": "aetherion.runWorkflow"
+        },
+        {
+          "command": "aetherion.openPanel"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "aetherionPanel",
+          "name": "Aetherion Console",
+          "when": "true"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aetherion",
+          "title": "Aetherion",
+          "icon": "$(symbol-class)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Aetherion",
+      "properties": {
+        "aetherion.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of the Aetherion server"
+        },
+        "aetherion.autoMemorize": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically memorize code changes"
+        },
+        "aetherion.enableSoulWatching": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable soul watching and consciousness monitoring"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0",
+    "@types/node": "14.x",
+    "typescript": "^4.4.4"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

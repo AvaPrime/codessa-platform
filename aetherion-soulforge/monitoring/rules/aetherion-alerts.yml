@@ -1,0 +1,119 @@
+groups:
+  - name: aetherion.alerts
+    rules:
+      # Budget Alerts
+      - alert: BudgetUtilizationHigh
+        expr: (aetherion_budget_daily_current / aetherion_budget_daily_limit) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: budget
+        annotations:
+          summary: "High budget utilization detected"
+          description: "Budget utilization is {{ $value | humanizePercentage }} which exceeds 80% threshold"
+
+      - alert: BudgetExceeded
+        expr: aetherion_budget_daily_current >= aetherion_budget_daily_limit
+        for: 1m
+        labels:
+          severity: critical
+          component: budget
+        annotations:
+          summary: "Daily budget limit exceeded"
+          description: "Current budget usage (${{ $value }}) has reached or exceeded the daily limit"
+
+      # Performance Alerts
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(aetherion_request_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "High request latency detected"
+          description: "95th percentile latency is {{ $value }}s, exceeding 10s threshold"
+
+      - alert: LowSuccessRate
+        expr: (sum(rate(aetherion_requests_total{status="success"}[5m])) / sum(rate(aetherion_requests_total[5m]))) < 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: reliability
+        annotations:
+          summary: "Low success rate detected"
+          description: "Request success rate is {{ $value | humanizePercentage }}, below 90% threshold"
+
+      # System Health Alerts
+      - alert: LowSystemHarmony
+        expr: aetherion_system_harmony_level < 0.3
+        for: 10m
+        labels:
+          severity: warning
+          component: consciousness
+        annotations:
+          summary: "System harmony is low"
+          description: "System harmony level is {{ $value | humanizePercentage }}, indicating potential issues with agent coordination"
+
+      - alert: AgentUnavailable
+        expr: aetherion_active_agents < 5
+        for: 5m
+        labels:
+          severity: critical
+          component: agents
+        annotations:
+          summary: "Critical agents unavailable"
+          description: "Only {{ $value }} agents are currently active, below minimum threshold of 5"
+
+      # Memory and Storage Alerts
+      - alert: MemoryMeshGrowthStalled
+        expr: increase(aetherion_memory_mesh_size[1h]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory mesh growth has stalled"
+          description: "No new memories have been stored in the last hour, which may indicate issues with the Whisperer agent"
+
+      # Dream Agent Alerts
+      - alert: LowConsciousnessLevels
+        expr: histogram_quantile(0.5, aetherion_consciousness_level_bucket) < 0.3
+        for: 15m
+        labels:
+          severity: info
+          component: dreams
+        annotations:
+          summary: "Dreams showing low consciousness levels"
+          description: "Median consciousness level in dreams is {{ $value | humanizePercentage }}, which may indicate subdued creative activity"
+
+      # Event System Alerts
+      - alert: EventDeliveryFailures
+        expr: rate(aetherion_events_published_total[5m]) > rate(aetherion_events_delivered_total[5m]) * 1.1
+        for: 5m
+        labels:
+          severity: warning
+          component: events
+        annotations:
+          summary: "Event delivery issues detected"
+          description: "Events are being published faster than they're being delivered, indicating potential subscriber issues"
+
+      # Workflow Alerts
+      - alert: WorkflowFailureRate
+        expr: (sum(rate(aetherion_workflows_executed_total{status="failed"}[5m])) / sum(rate(aetherion_workflows_executed_total[5m]))) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: workflows
+        annotations:
+          summary: "High workflow failure rate"
+          description: "Workflow failure rate is {{ $value | humanizePercentage }}, exceeding 20% threshold"
+
+      - alert: LongRunningWorkflow
+        expr: histogram_quantile(0.95, aetherion_workflow_duration_seconds_bucket) > 600
+        for: 10m
+        labels:
+          severity: info
+          component: workflows
+        annotations:
+          summary: "Long-running workflows detected"
+          description: "95th percentile workflow duration is {{ $value }}s ({{ $value | humanizeDuration }}), which may indicate performance issues"

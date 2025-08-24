@@ -1,0 +1,89 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@multi-agent-factory.local'
+  smtp_auth_username: 'alerts@multi-agent-factory.local'
+  smtp_auth_password: 'your-smtp-password'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+  - match:
+      severity: critical
+    receiver: 'critical-alerts'
+  - match:
+      severity: warning
+    receiver: 'warning-alerts'
+
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+
+- name: 'critical-alerts'
+  email_configs:
+  - to: 'admin@multi-agent-factory.local'
+    subject: 'CRITICAL: Multi-Agent Factory Alert'
+    body: |
+      Alert: {{ .GroupLabels.alertname }}
+      Summary: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+      Description: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+      
+      Details:
+      {{ range .Alerts }}
+      - Alert: {{ .Labels.alertname }}
+      - Severity: {{ .Labels.severity }}
+      - Instance: {{ .Labels.instance }}
+      - Started: {{ .StartsAt }}
+      {{ end }}
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#alerts-critical'
+    title: 'CRITICAL Alert: {{ .GroupLabels.alertname }}'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Labels.alertname }}
+      *Summary:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Severity:* {{ .Labels.severity }}
+      *Instance:* {{ .Labels.instance }}
+      {{ end }}
+
+- name: 'warning-alerts'
+  email_configs:
+  - to: 'ops@multi-agent-factory.local'
+    subject: 'WARNING: Multi-Agent Factory Alert'
+    body: |
+      Alert: {{ .GroupLabels.alertname }}
+      Summary: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+      Description: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+      
+      Details:
+      {{ range .Alerts }}
+      - Alert: {{ .Labels.alertname }}
+      - Severity: {{ .Labels.severity }}
+      - Instance: {{ .Labels.instance }}
+      - Started: {{ .StartsAt }}
+      {{ end }}
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#alerts-warning'
+    title: 'Warning Alert: {{ .GroupLabels.alertname }}'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Labels.alertname }}
+      *Summary:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Severity:* {{ .Labels.severity }}
+      *Instance:* {{ .Labels.instance }}
+      {{ end }}
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']

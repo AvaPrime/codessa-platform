@@ -1,0 +1,276 @@
+# Cloud Development Environment Configuration
+# Customize these settings for your specific setup
+
+# Cloud Provider Settings
+cloud:
+  # Primary provider for development (cpu-only)
+  primary_provider: "hetzner"  # Options: hetzner, aws, gcp, azure, digitalocean
+  
+  # GPU provider for AI/ML workloads
+  gpu_provider: "runpod"  # Options: runpod, paperspace, aws, gcp
+  
+  # VM Specifications
+  vm_specs:
+    development:
+      cpu: 8
+      memory: "32GB"
+      storage: "100GB"
+      os: "ubuntu-22.04"
+    
+    ai_workload:
+      cpu: 8
+      memory: "32GB"
+      storage: "200GB"
+      gpu: "RTX-4090"  # or A10G, P4000, etc.
+      os: "ubuntu-22.04"
+
+# Network Configuration
+network:
+  # SSH Configuration
+  ssh:
+    port: 22
+    key_type: "rsa"
+    key_size: 4096
+    
+  # Port Forwarding (local_port: remote_port)
+  port_forwards:
+    8888: 8888  # Jupyter Lab
+    8265: 8265  # Ray Dashboard
+    9001: 9001  # MinIO Console
+    9443: 9443  # Portainer
+    5432: 5432  # PostgreSQL
+    6379: 6379  # Redis
+    8000: 8000  # Development server
+    8080: 8080  # Alternative dev server
+    3000: 3000  # React dev server
+    5000: 5000  # Flask dev server
+
+# Development Stack Configuration
+development:
+  # Programming Languages
+  languages:
+    python:
+      version: "3.11"
+      packages:
+        - torch
+        - transformers
+        - langchain
+        - ray[default,serve,tune,rllib]
+        - dask[complete]
+        - jupyter
+        - jupyterlab
+        - pandas
+        - numpy
+        - scipy
+        - scikit-learn
+        - matplotlib
+        - seaborn
+        - plotly
+        - fastapi
+        - uvicorn
+        - gradio
+        - streamlit
+        - black
+        - isort
+        - flake8
+        - mypy
+        - pytest
+        - requests
+        - aiohttp
+        - httpx
+        - python-dotenv
+        - pydantic
+    
+    nodejs:
+      version: "lts"
+      global_packages:
+        - typescript
+        - ts-node
+        - nodemon
+        - pm2
+        - create-react-app
+        - next
+        - express-generator
+        - @nestjs/cli
+    
+    go:
+      version: "1.21.5"
+    
+    rust:
+      version: "stable"
+  
+  # Container Services
+  services:
+    jupyter:
+      image: "jupyter/tensorflow-notebook:latest"
+      port: 8888
+      token: "devtoken123"
+      
+    postgres:
+      image: "postgres:15"
+      port: 5432
+      database: "devdb"
+      username: "devuser"
+      password: "devpass123"
+      
+    redis:
+      image: "redis:alpine"
+      port: 6379
+      
+    minio:
+      image: "minio/minio"
+      port: 9000
+      console_port: 9001
+      username: "minioadmin"
+      password: "minioadmin123"
+      
+    portainer:
+      image: "portainer/portainer-ce:latest"
+      port: 9443
+
+# AI/ML Configuration
+ai_ml:
+  # Ray Cluster Settings
+  ray:
+    dashboard_host: "0.0.0.0"
+    dashboard_port: 8265
+    object_store_memory: "4GB"
+    
+  # Jupyter Configuration
+  jupyter:
+    lab_enabled: true
+    allow_root: false
+    ip: "0.0.0.0"
+    
+  # GPU Settings (if available)
+  gpu:
+    cuda_version: "11.8"
+    pytorch_cuda_index: "https://download.pytorch.org/whl/cu118"
+
+# Security Settings
+security:
+  # Firewall Rules
+  firewall:
+    enabled: true
+    allowed_ports:
+      - 22    # SSH
+      - 8000  # Dev server range start
+      - 8001
+      - 8080
+      - 8888  # Jupyter
+      - 8265  # Ray Dashboard
+      - 9000  # MinIO
+      - 9001  # MinIO Console
+      - 9443  # Portainer
+  
+  # SSH Security
+  ssh_security:
+    password_auth: false
+    root_login: false
+    key_auth_only: true
+    
+  # Optional: Tailscale VPN
+  vpn:
+    enabled: false
+    provider: "tailscale"  # Options: tailscale, wireguard
+
+# Monitoring and Logging
+monitoring:
+  # System Monitoring
+  system:
+    htop: true
+    docker_stats: true
+    
+  # Service Health Checks
+  health_checks:
+    postgres: true
+    redis: true
+    minio: true
+    ray: true
+    
+  # Log Retention
+  logs:
+    retention_days: 7
+    max_size: "100MB"
+
+# Backup Configuration
+backup:
+  # Automated Backups
+  enabled: false
+  
+  # Backup Targets
+  targets:
+    - "~/cloud-dev-project"
+    - "~/ai-env"
+    - "~/.ssh"
+    - "~/.gitconfig"
+  
+  # Backup Destination
+  destination:
+    type: "s3"  # Options: s3, gcs, azure, local
+    bucket: "my-dev-backups"
+    
+  # Schedule
+  schedule: "0 2 * * *"  # Daily at 2 AM
+
+# Cost Management
+cost_management:
+  # Auto-shutdown
+  auto_shutdown:
+    enabled: false
+    idle_time: "2h"  # Shutdown after 2 hours of inactivity
+    
+  # Spot Instance Settings
+  spot_instances:
+    enabled: false
+    max_price: "0.10"  # USD per hour
+    
+  # Resource Limits
+  limits:
+    max_monthly_cost: 100  # USD
+    alert_threshold: 80    # Percentage of max cost
+
+# Custom Scripts and Hooks
+custom:
+  # Pre-setup hooks
+  pre_setup_scripts: []
+  
+  # Post-setup hooks
+  post_setup_scripts: []
+  
+  # Custom packages to install
+  additional_packages:
+    apt: []
+    pip: []
+    npm: []
+    
+  # Environment Variables
+  environment_variables:
+    PYTHONPATH: "/home/devuser/projects"
+    NODE_ENV: "development"
+    
+# VS Code Configuration
+vscode:
+  # Extensions to install
+  extensions:
+    - "ms-vscode-remote.remote-ssh"
+    - "ms-vscode-remote.remote-ssh-edit"
+    - "ms-azuretools.vscode-docker"
+    - "ms-python.python"
+    - "ms-python.black-formatter"
+    - "ms-toolsai.jupyter"
+    - "golang.go"
+    - "rust-lang.rust-analyzer"
+    - "bradlc.vscode-tailwindcss"
+    - "esbenp.prettier-vscode"
+    - "ms-vscode.powershell"
+    - "hashicorp.terraform"
+    - "ms-kubernetes-tools.vscode-kubernetes-tools"
+  
+  # Settings
+  settings:
+    "python.defaultInterpreterPath": "~/ai-env/bin/python"
+    "python.formatting.provider": "black"
+    "editor.formatOnSave": true
+    "files.autoSave": "afterDelay"
+    "terminal.integrated.defaultProfile.linux": "bash"

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maf-storage
+  labels:
+    {{- include "maf.labels" . | nindent 4 }}
+data:
+  storage.yaml: |
+    replay:
+      provider: s3
+      bucket: maf-replay
+      endpoint_url: http://minio:9000
+      region: us-east-1

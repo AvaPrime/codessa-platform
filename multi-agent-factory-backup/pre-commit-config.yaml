@@ -1,0 +1,50 @@
+# File: .pre-commit-config.yaml (repository root)
+# Purpose: Enforce repository hygiene and invoke project‑specific gates via the Makefile,
+#          thereby keeping developer workflows and CI semantics aligned.
+# Usage:
+#   1) Install once:   pip install pre-commit
+#   2) Enable hooks:   pre-commit install --hook-type pre-commit --hook-type pre-push
+#   3) First sweep:    pre-commit run --all-files
+# Policy:
+#   • Commit‑time hooks run fast (style + typing) to preserve iteration speed.
+#   • Push‑time hooks may be heavier (full test suite) to protect the mainline.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+
+  # Local hooks delegate to the Makefile to centralize logic and avoid duplication
+  - repo: local
+    hooks:
+      - id: make-lint
+        name: Run make lint (ruff + black --check)
+        entry: make lint
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: make-typecheck
+        name: Run make typecheck (mypy)
+        entry: make typecheck
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: make-test
+        name: Run make test (full suite on push)
+        entry: make test
+        language: system
+        pass_filenames: false
+        stages: [push]
+
+      - id: make-validate-config
+        name: Run make validate-config (validate configuration)
+        entry: make validate-config
+        language: system
+        pass_filenames: false
+        stages: [commit]

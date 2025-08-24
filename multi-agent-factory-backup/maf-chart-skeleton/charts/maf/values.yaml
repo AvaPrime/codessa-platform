@@ -1,0 +1,144 @@
+global:
+  imagePullPolicy: IfNotPresent
+  registry: ghcr.io/your-org
+  imageTag: "v0.1.0"
+  spiffe:
+    enabled: true
+  vault:
+    enabled: true
+    server: "https://vault.example.com"
+    path: "kv"
+    auth:
+      kubernetes:
+        mountPath: "kubernetes"
+        role: "maf"
+        serviceAccount: "maf-vault"
+  cosign:
+    verify: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: maf.example.com
+  tlsSecret: maf-tls
+
+router:
+  enabled: true
+  models:
+    - id: openai:gpt-4.1-mini
+      priors: {latency_ms_p50: 650, input_tok_usd: 0.0003, output_tok_usd: 0.0006}
+      quality: medium
+      max_ctx: 128000
+    - id: openrouter:llama-3.1-70b
+      priors: {latency_ms_p50: 900, input_tok_usd: 0.0001, output_tok_usd: 0.0002}
+      quality: medium
+      max_ctx: 32000
+  policies:
+    routing:
+      default: {quality: medium, latency_budget_ms: 2000, cost_budget_usd: 0.002}
+    experiments: []
+
+api:
+  replicas: 3
+  image: api
+  resources:
+    requests: {cpu: "200m", memory: "256Mi"}
+    limits: {cpu: "1", memory: "1Gi"}
+  env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ENABLE_OPA: "true"
+    MAF_ENABLE_TEMPORAL: "true"
+  externalSecrets:
+    data:
+      - target: OPENAI_API_KEY
+        remoteRef:
+          path: "maf/api"
+          key: "openai_api_key"
+      - target: ANTHROPIC_API_KEY
+        remoteRef:
+          path: "maf/api"
+          key: "anthropic_api_key"
+      - target: NATS_TOKEN
+        remoteRef:
+          path: "maf/messaging"
+          key: "nats_token"
+      - target: POSTGRES_PASSWORD
+        remoteRef:
+          path: "maf/database"
+          key: "postgres_password"
+
+agents:
+  enabled: true
+  list:
+    - name: backend_dev
+    - name: frontend_dev
+    - name: compliance_checker
+    - name: doc_writer
+    - name: qa_tester
+  image: agent
+  replicas: 2
+  resources:
+    requests: {cpu: "200m", memory: "256Mi"}
+    limits: {cpu: "1", memory: "1Gi"}
+  env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+worker:
+  replicas: 2
+  image: worker
+  resources:
+    requests: {cpu: "200m", memory: "256Mi"}
+    limits: {cpu: "1", memory: "1Gi"}
+  env:
+    TEMPORAL_TARGET: temporal:7233
+    TEMPORAL_TASK_QUEUE: maf-tasks
+
+nats:
+  enabled: true
+  image: nats:2.10
+
+temporal:
+  enabled: true
+  image: temporalio/auto-setup:1.26
+  persistence: sqlite
+
+ray:
+  enabled: true
+  head:
+    cpu: "1"
+  workers:
+    count: 2
+    cpu: "2"
+
+vllm:
+  enabled: false
+  image: vllm/vllm-openai
+  gpu: true
+  models:
+    - name: meta-llama/Meta-Llama-3-70B-Instruct
+
+postgres:
+  enabled: true
+  storage: 20Gi
+  image: postgres:16
+
+minio:
+  enabled: true
+  storage: 50Gi
+  accessKey: minio
+  secretKey: minio12345
+  image: minio/minio:latest
+
+observability:
+  otelCollector: {enabled: true}
+  prometheus: {enabled: true}   # assumes Prometheus Operator managed outside this chart
+  grafana: {enabled: true}      # assumes external installation
+  loki: {enabled: true}         # assumes external installation
+  langfuse: {enabled: true}
+
+network:
+  defaultDeny: true
+  egressCIDRs:
+    - "10.0.0.0/8"  # internal example
+  egressFQDNAllow:
+    - "api.openrouter.ai"

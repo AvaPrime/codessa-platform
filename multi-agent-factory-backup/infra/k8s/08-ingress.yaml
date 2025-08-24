@@ -1,0 +1,282 @@
+# Ingress for Multi-Agent Factory API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maf-ingress
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-ingress
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: multi-agent-factory
+  annotations:
+    # Ingress Controller Specific
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+    
+    # Rate Limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+    
+    # Request Size Limits
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/client-max-body-size: "10m"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # Load Balancing
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/load-balance: "round_robin"
+    
+    # Health Checks
+    nginx.ingress.kubernetes.io/health-check-path: "/health/ready"
+    nginx.ingress.kubernetes.io/health-check-interval: "30s"
+    nginx.ingress.kubernetes.io/health-check-timeout: "5s"
+    
+    # CORS (if needed)
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://maf.example.com,https://admin.maf.example.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
+    nginx.ingress.kubernetes.io/cors-max-age: "86400"
+    
+    # Monitoring
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/access-log-path: "/var/log/nginx/maf-access.log"
+    
+    # Certificate Management (cert-manager)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+spec:
+  tls:
+  - hosts:
+    - api.maf.example.com
+    - maf.example.com
+    secretName: maf-tls-cert
+  rules:
+  - host: api.maf.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-api
+            port:
+              number: 80
+  - host: maf.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-api
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-frontend
+            port:
+              number: 80
+
+---
+# Internal Ingress for Admin/Monitoring Access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maf-admin-ingress
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-admin-ingress
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: multi-agent-factory
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # IP Whitelist for Admin Access
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    
+    # Basic Auth for Admin Endpoints
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "maf-admin-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "MAF Admin Access"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+    
+    # Certificate Management
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - admin.maf.example.com
+    secretName: maf-admin-tls-cert
+  rules:
+  - host: admin.maf.example.com
+    http:
+      paths:
+      # API Admin Endpoints
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-api
+            port:
+              number: 80
+      # Metrics Endpoint
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-api
+            port:
+              number: 80
+      # Health Endpoints
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: maf-api
+            port:
+              number: 80
+
+---
+# Network Policy for Ingress Traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maf-ingress-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-ingress-policy
+    app.kubernetes.io/component: network-policy
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow traffic from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow internal cluster traffic
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: multi-agent-factory
+    ports:
+    - protocol: TCP
+      port: 8000
+
+---
+# Service Monitor for Prometheus (if using Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: maf-ingress-monitor
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-ingress-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  endpoints:
+  - port: prometheus
+    interval: 30s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - ingress-nginx
+
+---
+# HorizontalPodAutoscaler for Ingress Controller
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-ingress-hpa
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: nginx-ingress-hpa
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ingress-nginx-controller
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 60

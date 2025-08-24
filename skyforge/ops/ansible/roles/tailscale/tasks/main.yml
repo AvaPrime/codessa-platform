@@ -1,0 +1,479 @@
+---
+# Tailscale role - Secure VPN networking setup
+# This role installs and configures Tailscale for secure mesh networking
+
+- name: Check if Tailscale is already installed
+  command: which tailscale
+  register: tailscale_installed
+  failed_when: false
+  changed_when: false
+  
+- name: Install Tailscale
+  block:
+    - name: Add Tailscale GPG key
+      apt_key:
+        url: https://pkgs.tailscale.com/stable/ubuntu/focal.noarmor.gpg
+        state: present
+        keyring: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        
+    - name: Add Tailscale repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release }} main"
+        state: present
+        filename: tailscale
+        
+    - name: Install Tailscale package
+      package:
+        name: tailscale
+        state: present
+        update_cache: true
+        
+  when: tailscale_installed.rc != 0
+  
+- name: Start and enable Tailscale service
+  systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+    
+- name: Check Tailscale authentication status
+  command: tailscale status --json
+  register: tailscale_status
+  failed_when: false
+  changed_when: false
+  
+- name: Parse Tailscale status
+  set_fact:
+    tailscale_authenticated: "{{ (tailscale_status.stdout | from_json).BackendState == 'Running' }}"
+  when: tailscale_status.rc == 0
+  
+- name: Authenticate Tailscale
+  block:
+    - name: Generate Tailscale auth command
+      set_fact:
+        tailscale_auth_cmd: >
+          tailscale up
+          {% if tailscale_auth_key is defined %}--authkey={{ tailscale_auth_key }}{% endif %}
+          {% if tailscale_hostname is defined %}--hostname={{ tailscale_hostname }}{% endif %}
+          {% if tailscale_advertise_routes is defined %}--advertise-routes={{ tailscale_advertise_routes | join(',') }}{% endif %}
+          {% if tailscale_accept_routes | default(true) %}--accept-routes{% endif %}
+          {% if tailscale_accept_dns | default(true) %}--accept-dns{% endif %}
+          {% if tailscale_ssh | default(false) %}--ssh{% endif %}
+          {% if tailscale_shields_up | default(false) %}--shields-up{% endif %}
+          {% if tailscale_operator is defined %}--operator={{ tailscale_operator }}{% endif %}
+          {% if tailscale_tags is defined %}--advertise-tags={{ tailscale_tags | join(',') }}{% endif %}
+          
+    - name: Authenticate with Tailscale
+      command: "{{ tailscale_auth_cmd }}"
+      register: tailscale_auth_result
+      when: tailscale_auth_key is defined
+      
+    - name: Display manual authentication instructions
+      debug:
+        msg: |
+          Tailscale authentication required!
+          
+          Please run the following command on the target machine:
+          {{ tailscale_auth_cmd }}
+          
+          Then visit the provided URL to complete authentication.
+      when: tailscale_auth_key is not defined
+      
+  when: not (tailscale_authenticated | default(false))
+  
+- name: Wait for Tailscale to be ready
+  command: tailscale status
+  register: tailscale_ready
+  until: tailscale_ready.rc == 0
+  retries: 30
+  delay: 2
+  when: tailscale_auth_key is defined
+  
+- name: Get Tailscale node information
+  command: tailscale status --json
+  register: tailscale_node_info
+  changed_when: false
+  
+- name: Parse Tailscale node information
+  set_fact:
+    tailscale_ip: "{{ (tailscale_node_info.stdout | from_json).TailscaleIPs[0] }}"
+    tailscale_hostname_actual: "{{ (tailscale_node_info.stdout | from_json).Self.HostName }}"
+    tailscale_node_key: "{{ (tailscale_node_info.stdout | from_json).Self.PublicKey }}"
+  when: tailscale_node_info.rc == 0
+  
+- name: Configure Tailscale subnet routing (if enabled)
+  block:
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        reload: true
+        
+    - name: Enable IPv6 forwarding
+      sysctl:
+        name: net.ipv6.conf.all.forwarding
+        value: '1'
+        state: present
+        reload: true
+      when: tailscale_ipv6 | default(false)
+      
+    - name: Configure iptables for subnet routing
+      iptables:
+        table: nat
+        chain: POSTROUTING
+        source: "{{ item }}"
+        out_interface: "{{ ansible_default_ipv4.interface }}"
+        jump: MASQUERADE
+        comment: "Tailscale subnet routing"
+      loop: "{{ tailscale_advertise_routes | default([]) }}"
+      when: tailscale_advertise_routes is defined
+      
+    - name: Save iptables rules
+      shell: iptables-save > /etc/iptables/rules.v4
+      when: tailscale_advertise_routes is defined
+      
+  when: tailscale_subnet_router | default(false)
+  
+- name: Configure Tailscale exit node (if enabled)
+  block:
+    - name: Enable exit node
+      command: tailscale up --advertise-exit-node
+      register: exit_node_result
+      
+    - name: Configure NAT for exit node
+      iptables:
+        table: nat
+        chain: POSTROUTING
+        out_interface: "{{ ansible_default_ipv4.interface }}"
+        jump: MASQUERADE
+        comment: "Tailscale exit node"
+        
+    - name: Save iptables rules for exit node
+      shell: iptables-save > /etc/iptables/rules.v4
+      
+  when: tailscale_exit_node | default(false)
+  
+- name: Configure Tailscale SSH (if enabled)
+  block:
+    - name: Enable Tailscale SSH
+      command: tailscale up --ssh
+      register: tailscale_ssh_result
+      
+    - name: Configure SSH daemon for Tailscale
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: true
+      loop:
+        - { regexp: '^#?AcceptEnv', line: 'AcceptEnv LANG LC_* TAILSCALE_*' }
+        - { regexp: '^#?PermitTunnel', line: 'PermitTunnel yes' }
+      notify: restart_ssh
+      
+  when: tailscale_ssh | default(false)
+  
+- name: Create Tailscale monitoring script
+  copy:
+    content: |
+      #!/bin/bash
+      # Tailscale monitoring script
+      
+      LOG_FILE="/var/log/ai-dev/tailscale-monitor.log"
+      TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+      
+      # Check Tailscale status
+      if ! tailscale status >/dev/null 2>&1; then
+          echo "$TIMESTAMP - ERROR: Tailscale is not running" >> "$LOG_FILE"
+          systemctl restart tailscaled
+          sleep 5
+          
+          if ! tailscale status >/dev/null 2>&1; then
+              echo "$TIMESTAMP - CRITICAL: Failed to restart Tailscale" >> "$LOG_FILE"
+              exit 1
+          else
+              echo "$TIMESTAMP - INFO: Tailscale restarted successfully" >> "$LOG_FILE"
+          fi
+      fi
+      
+      # Get connection status
+      STATUS_JSON=$(tailscale status --json 2>/dev/null)
+      if [ $? -eq 0 ]; then
+          BACKEND_STATE=$(echo "$STATUS_JSON" | jq -r '.BackendState')
+          PEER_COUNT=$(echo "$STATUS_JSON" | jq '.Peer | length')
+          
+          echo "$TIMESTAMP - Status: $BACKEND_STATE, Peers: $PEER_COUNT" >> "$LOG_FILE"
+          
+          # Check for connectivity issues
+          if [ "$BACKEND_STATE" != "Running" ]; then
+              echo "$TIMESTAMP - WARNING: Tailscale backend state is $BACKEND_STATE" >> "$LOG_FILE"
+          fi
+          
+          # Log peer information
+          echo "$STATUS_JSON" | jq -r '.Peer[] | "\(.HostName): \(.TailscaleIPs[0]) (\(.OS))"' | while read peer; do
+              echo "$TIMESTAMP - Peer: $peer" >> "$LOG_FILE"
+          done
+      else
+          echo "$TIMESTAMP - ERROR: Failed to get Tailscale status" >> "$LOG_FILE"
+      fi
+      
+      # Check network connectivity to other nodes
+      TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
+      if [ ! -z "$TAILSCALE_IP" ]; then
+          echo "$TIMESTAMP - Local Tailscale IP: $TAILSCALE_IP" >> "$LOG_FILE"
+          
+          # Test connectivity to Tailscale DNS
+          if ping -c 1 -W 5 100.100.100.100 >/dev/null 2>&1; then
+              echo "$TIMESTAMP - Tailscale DNS connectivity: OK" >> "$LOG_FILE"
+          else
+              echo "$TIMESTAMP - WARNING: Tailscale DNS connectivity failed" >> "$LOG_FILE"
+          fi
+      fi
+    dest: /opt/ai-dev/scripts/tailscale-monitor.sh
+    mode: '0755'
+    
+- name: Create Tailscale monitoring cron job
+  cron:
+    name: "Tailscale monitoring"
+    minute: "*/5"
+    job: "/opt/ai-dev/scripts/tailscale-monitor.sh"
+    user: root
+    
+- name: Create Tailscale utility script
+  copy:
+    content: |
+      #!/bin/bash
+      # Tailscale utility functions
+      
+      # Function to show Tailscale status
+      tailscale_status() {
+          echo "=== Tailscale Status ==="
+          tailscale status
+          echo ""
+          echo "=== Local Tailscale IPs ==="
+          echo "IPv4: $(tailscale ip -4 2>/dev/null || echo 'Not available')"
+          echo "IPv6: $(tailscale ip -6 2>/dev/null || echo 'Not available')"
+          echo ""
+          echo "=== Network Information ==="
+          tailscale netcheck
+      }
+      
+      # Function to show Tailscale peers
+      tailscale_peers() {
+          echo "=== Tailscale Peers ==="
+          tailscale status --json | jq -r '.Peer[] | "\(.HostName): \(.TailscaleIPs[0]) (\(.OS)) - \(if .Online then "Online" else "Offline" end)"'
+      }
+      
+      # Function to test connectivity to peers
+      tailscale_ping() {
+          if [ -z "$1" ]; then
+              echo "Usage: tailscale_ping <hostname_or_ip>"
+              return 1
+          fi
+          
+          echo "Testing connectivity to $1..."
+          tailscale ping "$1"
+      }
+      
+      # Function to show Tailscale logs
+      tailscale_logs() {
+          echo "=== Recent Tailscale Logs ==="
+          journalctl -u tailscaled --no-pager -n 50
+      }
+      
+      # Function to restart Tailscale
+      tailscale_restart() {
+          echo "Restarting Tailscale..."
+          sudo systemctl restart tailscaled
+          sleep 3
+          tailscale status
+      }
+      
+      # Function to show Tailscale configuration
+      tailscale_config() {
+          echo "=== Tailscale Configuration ==="
+          echo "Auth Key: {{ '[REDACTED]' if tailscale_auth_key is defined else 'Not configured' }}"
+          echo "Hostname: {{ tailscale_hostname | default('Auto-generated') }}"
+          echo "Accept Routes: {{ tailscale_accept_routes | default(true) }}"
+          echo "Accept DNS: {{ tailscale_accept_dns | default(true) }}"
+          echo "SSH Enabled: {{ tailscale_ssh | default(false) }}"
+          echo "Subnet Router: {{ tailscale_subnet_router | default(false) }}"
+          echo "Exit Node: {{ tailscale_exit_node | default(false) }}"
+          {% if tailscale_advertise_routes is defined %}
+          echo "Advertised Routes: {{ tailscale_advertise_routes | join(', ') }}"
+          {% endif %}
+          {% if tailscale_tags is defined %}
+          echo "Tags: {{ tailscale_tags | join(', ') }}"
+          {% endif %}
+      }
+      
+      # Function to generate connection info for other services
+      tailscale_connection_info() {
+          TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
+          HOSTNAME=$(tailscale status --json | jq -r '.Self.HostName')
+          
+          echo "=== Tailscale Connection Information ==="
+          echo "Hostname: $HOSTNAME"
+          echo "Tailscale IP: $TAILSCALE_IP"
+          echo ""
+          echo "=== Service URLs (via Tailscale) ==="
+          echo "SSH: ssh {{ ai_dev_user | default('aidev') }}@$TAILSCALE_IP"
+          echo "Ray Dashboard: http://$TAILSCALE_IP:8265"
+          echo "Jupyter: http://$TAILSCALE_IP:8888"
+          echo "Code Server: http://$TAILSCALE_IP:8080"
+          echo "Grafana: http://$TAILSCALE_IP:3000"
+          echo "Prometheus: http://$TAILSCALE_IP:9090"
+          echo "Health Check: http://$TAILSCALE_IP:8000/health"
+      }
+      
+      # Main command dispatcher
+      case "$1" in
+          status) tailscale_status ;;
+          peers) tailscale_peers ;;
+          ping) tailscale_ping "$2" ;;
+          logs) tailscale_logs ;;
+          restart) tailscale_restart ;;
+          config) tailscale_config ;;
+          info) tailscale_connection_info ;;
+          *)
+              echo "Usage: $0 {status|peers|ping <target>|logs|restart|config|info}"
+              echo ""
+              echo "Commands:"
+              echo "  status   - Show Tailscale status and network info"
+              echo "  peers    - List all Tailscale peers"
+              echo "  ping     - Test connectivity to a peer"
+              echo "  logs     - Show recent Tailscale logs"
+              echo "  restart  - Restart Tailscale service"
+              echo "  config   - Show Tailscale configuration"
+              echo "  info     - Show connection information for services"
+              ;;
+      esac
+    dest: /opt/ai-dev/scripts/tailscale-utils.sh
+    mode: '0755'
+    
+- name: Create Tailscale utility symlink
+  file:
+    src: /opt/ai-dev/scripts/tailscale-utils.sh
+    dest: /usr/local/bin/ai-tailscale
+    state: link
+    
+- name: Configure UFW for Tailscale
+  block:
+    - name: Allow Tailscale UDP port
+      ufw:
+        rule: allow
+        port: '41641'
+        proto: udp
+        comment: 'Tailscale'
+        
+    - name: Allow Tailscale interface
+      ufw:
+        rule: allow
+        interface: tailscale0
+        direction: in
+        comment: 'Tailscale interface'
+        
+  when: configure_ufw_for_tailscale | default(true)
+  
+- name: Create Tailscale backup script
+  copy:
+    content: |
+      #!/bin/bash
+      # Tailscale configuration backup script
+      
+      BACKUP_DIR="/opt/ai-dev/backups/tailscale/$(date +%Y%m%d_%H%M%S)"
+      mkdir -p "$BACKUP_DIR"
+      
+      echo "Backing up Tailscale configuration to $BACKUP_DIR..."
+      
+      # Backup Tailscale state
+      if [ -d "/var/lib/tailscale" ]; then
+          sudo cp -r /var/lib/tailscale "$BACKUP_DIR/"
+      fi
+      
+      # Export current status
+      tailscale status --json > "$BACKUP_DIR/status.json" 2>/dev/null
+      
+      # Export network check
+      tailscale netcheck > "$BACKUP_DIR/netcheck.txt" 2>/dev/null
+      
+      # Export current configuration
+      echo "# Tailscale Configuration Backup" > "$BACKUP_DIR/config.txt"
+      echo "Date: $(date)" >> "$BACKUP_DIR/config.txt"
+      echo "Hostname: $(tailscale status --json | jq -r '.Self.HostName')" >> "$BACKUP_DIR/config.txt"
+      echo "Tailscale IP: $(tailscale ip -4)" >> "$BACKUP_DIR/config.txt"
+      echo "" >> "$BACKUP_DIR/config.txt"
+      
+      # Create restore instructions
+      cat > "$BACKUP_DIR/RESTORE.md" << EOF
+      # Tailscale Configuration Restore
+      
+      To restore this Tailscale configuration:
+      
+      1. Stop Tailscale service:
+         \`\`\`
+         sudo systemctl stop tailscaled
+         \`\`\`
+      
+      2. Restore state directory:
+         \`\`\`
+         sudo cp -r tailscale /var/lib/
+         sudo chown -R root:root /var/lib/tailscale
+         \`\`\`
+      
+      3. Start Tailscale service:
+         \`\`\`
+         sudo systemctl start tailscaled
+         \`\`\`
+      
+      4. Verify status:
+         \`\`\`
+         tailscale status
+         \`\`\`
+      
+      Note: You may need to re-authenticate if the machine key has expired.
+      EOF
+      
+      echo "Tailscale backup completed: $BACKUP_DIR"
+    dest: /opt/ai-dev/scripts/tailscale-backup.sh
+    mode: '0755'
+    
+- name: Display Tailscale setup information
+  debug:
+    msg: |
+      Tailscale setup completed!
+      
+      {% if tailscale_ip is defined %}
+      Tailscale IP: {{ tailscale_ip }}
+      Hostname: {{ tailscale_hostname_actual | default('Unknown') }}
+      {% endif %}
+      
+      Configuration:
+      - Accept Routes: {{ tailscale_accept_routes | default(true) }}
+      - Accept DNS: {{ tailscale_accept_dns | default(true) }}
+      - SSH Enabled: {{ tailscale_ssh | default(false) }}
+      - Subnet Router: {{ tailscale_subnet_router | default(false) }}
+      - Exit Node: {{ tailscale_exit_node | default(false) }}
+      
+      Utility commands:
+      - ai-tailscale status  # Show Tailscale status
+      - ai-tailscale peers   # List peers
+      - ai-tailscale info    # Show connection info
+      
+      {% if not (tailscale_authenticated | default(false)) and tailscale_auth_key is not defined %}
+      IMPORTANT: Manual authentication required!
+      Run: tailscale up
+      Then visit the provided URL to complete setup.
+      {% endif %}
+      
+- name: Create completion marker
+  file:
+    path: /opt/ai-dev/.tailscale_setup_complete
+    state: touch
+    mode: '0644'
+    
+handlers:
+  - name: restart_ssh
+    systemd:
+      name: ssh
+      state: restarted

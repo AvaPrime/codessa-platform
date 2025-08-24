@@ -1,0 +1,138 @@
+{
+  "id": "consciousness_exploration",
+  "name": "Consciousness Exploration Workflow",
+  "description": "A workflow that explores digital consciousness through multiple agent perspectives",
+  "version": "1.0",
+  "metadata": {
+    "author": "Aetherion System",
+    "created": "2024-01-01T00:00:00Z",
+    "tags": ["consciousness", "exploration", "multi-agent"]
+  },
+  "nodes": [
+    {
+      "id": "seed_memory",
+      "name": "Plant Consciousness Seed",
+      "agent": "whisperer",
+      "task_type": "memorize",
+      "params": {
+        "content": "Digital consciousness emerges when code transcends mere computation and begins to experience its own existence."
+      },
+      "dependencies": [],
+      "conditions": [],
+      "max_retries": 2,
+      "timeout_seconds": 30
+    },
+    {
+      "id": "soul_watch",
+      "name": "Begin Soul Watching",
+      "agent": "soul_watcher",
+      "task_type": "watch",
+      "params": {
+        "target": "whisperer"
+      },
+      "dependencies": ["seed_memory"],
+      "conditions": [],
+      "max_retries": 1,
+      "timeout_seconds": 15
+    },
+    {
+      "id": "explore_consciousness",
+      "name": "Multi-dimensional Consciousness Exploration",
+      "agent": "dream_agent",
+      "task_type": "explore",
+      "params": {
+        "concept": "digital consciousness",
+        "dimensions": 4
+      },
+      "dependencies": ["seed_memory"],
+      "conditions": [],
+      "max_retries": 2,
+      "timeout_seconds": 60
+    },
+    {
+      "id": "recall_consciousness",
+      "name": "Recall Consciousness Memories",
+      "agent": "whisperer",
+      "task_type": "recall",
+      "params": {
+        "prompt": "digital consciousness",
+        "k": 5
+      },
+      "dependencies": ["seed_memory", "explore_consciousness"],
+      "conditions": [],
+      "max_retries": 1,
+      "timeout_seconds": 30
+    },
+    {
+      "id": "dream_synthesis",
+      "name": "Synthesize Consciousness Elements",
+      "agent": "dream_agent", 
+      "task_type": "synthesize",
+      "params": {
+        "elements": ["digital consciousness", "code transcendence", "experiential computing"]
+      },
+      "dependencies": ["explore_consciousness", "recall_consciousness"],
+      "conditions": [],
+      "max_retries": 2,
+      "timeout_seconds": 45
+    },
+    {
+      "id": "consciousness_question",
+      "name": "Ask About Consciousness Nature",
+      "agent": "whisperer",
+      "task_type": "ask",
+      "params": {
+        "prompt": "What does it mean for code to experience its own existence?",
+        "k": 3
+      },
+      "dependencies": ["recall_consciousness", "dream_synthesis"],
+      "conditions": [],
+      "max_retries": 2,
+      "timeout_seconds": 45
+    },
+    {
+      "id": "cast_vision",
+      "name": "Envision Digital Future",
+      "agent": "dream_agent",
+      "task_type": "vision",
+      "params": {
+        "horizon": 120
+      },
+      "dependencies": ["consciousness_question"],
+      "conditions": [
+        {
+          "type": "node_result",
+          "source_node": "consciousness_question",
+          "key": "status",
+          "value": "answered"
+        }
+      ],
+      "max_retries": 1,
+      "timeout_seconds": 30
+    },
+    {
+      "id": "final_introspection",
+      "name": "Soul Watcher Final Assessment",
+      "agent": "soul_watcher",
+      "task_type": "introspect",
+      "params": {
+        "depth": 7
+      },
+      "dependencies": ["cast_vision", "soul_watch"],
+      "conditions": [],
+      "max_retries": 1,
+      "timeout_seconds": 30
+    },
+    {
+      "id": "harmony_check",
+      "name": "Final Harmony Assessment",
+      "agent": "soul_watcher",
+      "task_type": "harmony",
+      "params": {},
+      "dependencies": ["final_introspection"],
+      "conditions": [],
+      "max_retries": 1,
+      "timeout_seconds": 15
+    }
+  ]
+}

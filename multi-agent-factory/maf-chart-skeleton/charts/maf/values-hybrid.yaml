@@ -1,0 +1,11 @@
+vllm: {enabled: true}
+router:
+  policies:
+    routing:
+      default: {quality: medium}
+      tenants:
+        acme-inc: {quality: high, cost_budget_usd: 0.01}
+network:
+  egressFQDNAllow:
+    - "api.openrouter.ai"
+    - "internal-llm.company.tld"

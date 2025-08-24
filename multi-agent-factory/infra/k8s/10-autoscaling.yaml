@@ -1,0 +1,556 @@
+# Horizontal Pod Autoscaler for API
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: maf-api-hpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-hpa
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: maf-api
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics - Request rate
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  # Custom metrics - Response time
+  - type: Pods
+    pods:
+      metric:
+        name: http_request_duration_seconds
+      target:
+        type: AverageValue
+        averageValue: "500m"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+      - type: Pods
+        value: 4
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# HPA for Document Writer Agents
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: doc-writer-agent-hpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: doc-writer-agent-hpa
+    app.kubernetes.io/component: autoscaler
+    agent.maf.io/type: doc_writer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: doc-writer-agent
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metric - Task queue length
+  - type: Object
+    object:
+      metric:
+        name: maf_agent_task_queue_size
+        selector:
+          matchLabels:
+            agent_type: doc_writer
+      target:
+        type: Value
+        value: "5"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# HPA for Frontend Developer Agents
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-dev-agent-hpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: frontend-dev-agent-hpa
+    app.kubernetes.io/component: autoscaler
+    agent.maf.io/type: frontend_dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-dev-agent
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+  - type: Object
+    object:
+      metric:
+        name: maf_agent_task_queue_size
+        selector:
+          matchLabels:
+            agent_type: frontend_dev
+      target:
+        type: Value
+        value: "3"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# HPA for Backend Developer Agents
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-dev-agent-hpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backend-dev-agent-hpa
+    app.kubernetes.io/component: autoscaler
+    agent.maf.io/type: backend_dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-dev-agent
+  minReplicas: 2
+  maxReplicas: 12
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Object
+    object:
+      metric:
+        name: maf_agent_task_queue_size
+        selector:
+          matchLabels:
+            agent_type: backend_dev
+      target:
+        type: Value
+        value: "4"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 3
+        periodSeconds: 60
+
+---
+# HPA for QA Tester Agents
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: qa-tester-agent-hpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: qa-tester-agent-hpa
+    app.kubernetes.io/component: autoscaler
+    agent.maf.io/type: qa_tester
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: qa-tester-agent
+  minReplicas: 1
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Object
+    object:
+      metric:
+        name: maf_agent_task_queue_size
+        selector:
+          matchLabels:
+            agent_type: qa_tester
+      target:
+        type: Value
+        value: "3"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# Vertical Pod Autoscaler for API
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: maf-api-vpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-vpa
+    app.kubernetes.io/component: autoscaler
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: maf-api
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: api
+      minAllowed:
+        cpu: 250m
+        memory: 512Mi
+      maxAllowed:
+        cpu: 4000m
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# VPA for Backend Developer Agents
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: backend-dev-agent-vpa
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backend-dev-agent-vpa
+    app.kubernetes.io/component: autoscaler
+    agent.maf.io/type: backend_dev
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-dev-agent
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: backend-dev
+      minAllowed:
+        cpu: 200m
+        memory: 512Mi
+      maxAllowed:
+        cpu: 3000m
+        memory: 6Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# Pod Disruption Budget for API
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: maf-api-pdb
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-api-pdb
+    app.kubernetes.io/component: availability
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: maf-api
+      app.kubernetes.io/component: api
+
+---
+# Pod Disruption Budget for Database
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: postgres-pdb
+    app.kubernetes.io/component: availability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/component: database
+
+---
+# Pod Disruption Budget for Agents
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: maf-agents-pdb
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-agents-pdb
+    app.kubernetes.io/component: availability
+spec:
+  minAvailable: "50%"
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: agent
+
+---
+# Custom Resource for Cluster Autoscaler Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-config
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+    app.kubernetes.io/component: autoscaler
+data:
+  nodes.max: "100"
+  nodes.min: "3"
+  scale-down-enabled: "true"
+  scale-down-delay-after-add: "10m"
+  scale-down-unneeded-time: "10m"
+  scale-down-utilization-threshold: "0.5"
+  skip-nodes-with-local-storage: "false"
+  skip-nodes-with-system-pods: "false"
+  max-node-provision-time: "15m"
+  scan-interval: "10s"
+  max-nodes-total: "100"
+  cores-total: "0:320"
+  memory-total: "0:1280GiB"
+  node-group-auto-discovery: "asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/maf-cluster"
+
+---
+# Priority Classes for Workload Scheduling
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: maf-critical
+  labels:
+    app.kubernetes.io/name: maf-critical
+    app.kubernetes.io/component: scheduling
+value: 1000
+globalDefault: false
+description: "Critical MAF components like API and database"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: maf-high
+  labels:
+    app.kubernetes.io/name: maf-high
+    app.kubernetes.io/component: scheduling
+value: 800
+globalDefault: false
+description: "High priority MAF agents"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: maf-normal
+  labels:
+    app.kubernetes.io/name: maf-normal
+    app.kubernetes.io/component: scheduling
+value: 500
+globalDefault: true
+description: "Normal priority MAF workloads"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: maf-low
+  labels:
+    app.kubernetes.io/name: maf-low
+    app.kubernetes.io/component: scheduling
+value: 200
+globalDefault: false
+description: "Low priority MAF workloads like monitoring"
+
+---
+# Resource Quota for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: maf-resource-quota
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-resource-quota
+    app.kubernetes.io/component: governance
+spec:
+  hard:
+    # Compute Resources
+    requests.cpu: "50"
+    requests.memory: 100Gi
+    limits.cpu: "100"
+    limits.memory: 200Gi
+    
+    # Storage Resources
+    requests.storage: 500Gi
+    persistentvolumeclaims: "20"
+    
+    # Object Counts
+    pods: "100"
+    services: "20"
+    secrets: "20"
+    configmaps: "20"
+    replicationcontrollers: "0"
+    
+    # Load Balancers
+    services.loadbalancers: "5"
+    services.nodeports: "10"
+
+---
+# Limit Range for resource constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: maf-limit-range
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-limit-range
+    app.kubernetes.io/component: governance
+spec:
+  limits:
+  # Container limits
+  - type: Container
+    default:
+      cpu: 1000m
+      memory: 2Gi
+      ephemeral-storage: 2Gi
+    defaultRequest:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 500Mi
+    max:
+      cpu: 8000m
+      memory: 16Gi
+      ephemeral-storage: 10Gi
+    min:
+      cpu: 50m
+      memory: 128Mi
+      ephemeral-storage: 100Mi
+  
+  # Pod limits
+  - type: Pod
+    max:
+      cpu: 16000m
+      memory: 32Gi
+      ephemeral-storage: 20Gi
+    min:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 500Mi
+  
+  # PVC limits
+  - type: PersistentVolumeClaim
+    max:
+      storage: 100Gi
+    min:
+      storage: 1Gi

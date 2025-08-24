@@ -1,0 +1,12 @@
+vllm: {enabled: true}
+router:
+  models:
+    - id: vllm:llama-3-70b
+      priors: {latency_ms_p50: 120, input_tok_usd: 0, output_tok_usd: 0}
+      quality: medium
+      max_ctx: 32768
+network:
+  egressFQDNAllow: []  # air-gapped
+minio: {enabled: true}
+observability:
+  langfuse: {enabled: false}

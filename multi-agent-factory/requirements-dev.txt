@@ -1,0 +1,40 @@
+# Multi-Agent Factory - Development Dependencies
+# Include production dependencies
+-r requirements.txt
+
+# Code Quality & Formatting
+black==24.4.2
+ruff==0.6.9
+mypy==1.12.0
+pre-commit==3.6.0
+
+# Testing Framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==0.46.0
+pytest-xdist==3.5.0
+pytest-mock==3.12.0
+
+# Testing Utilities
+factory-boy==3.3.0
+faker==22.0.0
+httpx==0.26.0  # For async HTTP testing
+
+# Type Checking Support
+types-requests==2.31.0.20240125
+types-PyYAML==6.0.12.12
+types-redis==4.6.0.20240106
+
+# Configuration Validation
+yamllint==1.35.1
+
+# Security Scanning
+bandit==1.7.5
+safety==3.0.1
+
+# Performance Testing
+locust==2.20.0
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.5.3

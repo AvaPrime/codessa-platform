@@ -1,0 +1,3 @@
+* @yourorg/maf-maintainers
+docs/* @yourorg/maf-docs
+infra/* @yourorg/maf-infra

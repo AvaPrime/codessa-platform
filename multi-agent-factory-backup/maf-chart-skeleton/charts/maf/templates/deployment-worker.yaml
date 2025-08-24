@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maf-worker
+  labels: {{- include "maf.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector: { matchLabels: { app: maf, component: worker } }
+  template:
+    metadata:
+      labels: { app: maf, component: worker }
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.global.registry }}/{{ .Values.worker.image }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef: {name: maf-router}
+            - configMapRef: {name: maf-storage}
+            - secretRef: {name: maf-runtime}
+          env:
+            - name: TEMPORAL_TARGET
+              value: "{{ .Values.worker.env.TEMPORAL_TARGET }}"
+            - name: TEMPORAL_TASK_QUEUE
+              value: "{{ .Values.worker.env.TEMPORAL_TASK_QUEUE }}"
+          resources:
+{{ toYaml .Values.worker.resources | indent 12 }}

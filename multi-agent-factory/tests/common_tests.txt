@@ -1,0 +1,125 @@
+Absolutely — in fact, if you think of **unit tests** and **smoke tests** as the bookends, there’s a whole shelf of other test types in between and beyond.
+Let me give you the quick landscape first, then I’ll give you the smoke test script.
+
+---
+
+## 🧪 Common Types of Tests
+
+Here’s the “testing ladder” from smallest to largest scope:
+
+### **1. Unit Tests**
+
+* *Smallest scope.*
+* Test individual functions or classes in isolation.
+* Fastest to run.
+* Example: Verify your `BaseAgent.handle()` logic works with given payloads.
+
+### **2. Integration Tests**
+
+* Test how two or more components work together.
+* Uses **real dependencies** (like Postgres, Redis, or NATS in a test environment).
+* Example: Post a message to NATS and confirm an agent writes the correct row in Postgres.
+
+### **3. Component Tests**
+
+* Larger than unit tests but smaller than full end-to-end.
+* Test one “service” in the stack by faking or mocking its neighbors.
+* Example: Run the `doc-writer` agent against a fake NATS server and a test Postgres DB.
+
+### **4. End-to-End (E2E) Tests**
+
+* Full system test from the user’s point of view.
+* All services running for real.
+* Example: Call the API → it publishes to NATS → agent processes it → DB updates → API returns result.
+* Often automated via tools like Playwright, Cypress, or pytest.
+
+### **5. Smoke Tests**
+
+* Minimal E2E tests to check system health after deployment.
+* Quick and shallow.
+
+### **6. Regression Tests**
+
+* Re-run tests that caught bugs before to make sure those bugs stay fixed.
+* Example: If a malformed payload once crashed your agent, add a test for it.
+
+### **7. Load/Performance Tests**
+
+* Stress the system to see how it handles large volumes or heavy concurrency.
+* Example: Publish 10,000 NATS messages and monitor processing time.
+
+### **8. Chaos/Resilience Tests**
+
+* Deliberately break parts of the system to see how it recovers.
+* Example: Kill Redis mid-job and verify Temporal retries gracefully.
+
+---
+
+## 🚀 Example Smoke Test Script for Your Setup
+
+Here’s a tiny **Python script** that will:
+
+1. Wait for NATS to be healthy.
+2. Publish a message to your `doc_writer` agent.
+3. Listen for confirmation via Postgres.
+
+```python
+import time
+import psycopg2
+import json
+from nats.aio.client import Client as NATS
+import asyncio
+
+POSTGRES_URI = "postgresql://user:pass@localhost:5432/factory"
+NATS_URL = "nats://localhost:4222"
+TEST_TASK_ID = "smoke_test_001"
+
+async def main():
+    # Step 1: Connect to NATS
+    nc = NATS()
+    print("Connecting to NATS...")
+    await nc.connect(NATS_URL)
+    print("Connected to NATS.")
+
+    # Step 2: Publish test message
+    payload = {"task_id": TEST_TASK_ID, "text": "Smoke test payload"}
+    await nc.publish("tasks.doc_writer", json.dumps(payload).encode())
+    print("Published test message.")
+
+    await asyncio.sleep(3)  # Give the agent time to process
+
+    # Step 3: Check Postgres for result
+    print("Checking Postgres for result...")
+    conn = psycopg2.connect(POSTGRES_URI)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM documents WHERE task_id = %s;", (TEST_TASK_ID,))
+    count = cur.fetchone()[0]
+
+    if count > 0:
+        print("✅ Smoke test passed: task processed successfully.")
+    else:
+        print("❌ Smoke test failed: no record found.")
+
+    await nc.close()
+    conn.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Run it** after `docker compose up`:
+
+```bash
+pip install nats-py psycopg2-binary
+python smoke_test.py
+```
+
+---
+
+If you want, I can also draft you a **pytest-based suite** that includes:
+
+* Unit tests for `BaseAgent.handle()`
+* Integration tests for NATS → Agent → Postgres
+* Smoke test like above that can be run after deployment
+
+That way, you’ve got the whole pyramid of tests covered. Would you like me to do that next?

@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model routing config",
+  "type": "object",
+  "properties": {
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "task_type": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "temperature": {
+                  "type": "number"
+                },
+                "top_p": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "task_type",
+                "model"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "routes"
+        ]
+      }
+    }
+  },
+  "required": [
+    "profiles"
+  ]
+}

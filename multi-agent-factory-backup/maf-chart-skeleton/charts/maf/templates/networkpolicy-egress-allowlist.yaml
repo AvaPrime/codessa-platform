@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: np-egress-allowlist
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock: { cidr: {{ (index .Values.network.egressCIDRs 0) | default "10.0.0.0/8" | quote }} }
+      ports: [{ protocol: TCP, port: 443 }]
+# For FQDN-based allowlists, use egress gateway/DNS proxy in prod

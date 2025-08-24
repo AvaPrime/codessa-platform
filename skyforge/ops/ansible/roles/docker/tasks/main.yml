@@ -1,0 +1,569 @@
+---
+# Docker role - Container orchestration setup
+# This role installs and configures Docker for AI development workloads
+
+- name: Remove old Docker packages
+  package:
+    name:
+      - docker
+      - docker-engine
+      - docker.io
+      - containerd
+      - runc
+    state: absent
+    
+- name: Install Docker dependencies
+  package:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - apt-transport-https
+      - software-properties-common
+    state: present
+    update_cache: true
+    
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+    keyring: /usr/share/keyrings/docker-archive-keyring.gpg
+    
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+    
+- name: Install Docker packages
+  package:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+    
+- name: Install Docker Compose (standalone)
+  get_url:
+    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version | default('v2.24.0') }}/docker-compose-linux-x86_64"
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+    owner: root
+    group: root
+    
+- name: Create docker-compose symlink
+  file:
+    src: /usr/local/bin/docker-compose
+    dest: /usr/bin/docker-compose
+    state: link
+    
+- name: Add users to docker group
+  user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop:
+    - "{{ ai_dev_user | default('aidev') }}"
+    - "{{ ansible_user }}"
+  when: item != 'root'
+  
+- name: Configure Docker daemon
+  copy:
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2",
+        "storage-opts": [
+          "overlay2.override_kernel_check=true"
+        ],
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "live-restore": true,
+        "userland-proxy": false,
+        "experimental": false,
+        "metrics-addr": "0.0.0.0:9323",
+        "default-runtime": "{{ 'nvidia' if gpu_support | default(false) else 'runc' }}",
+        "runtimes": {
+          "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+          }
+        },
+        "default-ulimits": {
+          "memlock": {
+            "Hard": -1,
+            "Name": "memlock",
+            "Soft": -1
+          },
+          "stack": {
+            "Hard": 67108864,
+            "Name": "stack",
+            "Soft": 67108864
+          }
+        },
+        "dns": ["8.8.8.8", "8.8.4.4"],
+        "registry-mirrors": {{ docker_registry_mirrors | default([]) | to_json }},
+        "insecure-registries": {{ docker_insecure_registries | default([]) | to_json }}
+      }
+    dest: /etc/docker/daemon.json
+    mode: '0644'
+    backup: true
+  notify: restart_docker
+  
+- name: Install NVIDIA Container Toolkit (if GPU support enabled)
+  block:
+    - name: Add NVIDIA GPG key
+      apt_key:
+        url: https://nvidia.github.io/nvidia-docker/gpgkey
+        state: present
+        
+    - name: Add NVIDIA repository
+      apt_repository:
+        repo: "deb https://nvidia.github.io/nvidia-docker/{{ ansible_distribution | lower }}{{ ansible_distribution_version }}/$(ARCH) /"
+        state: present
+        
+    - name: Install NVIDIA Container Toolkit
+      package:
+        name:
+          - nvidia-container-toolkit
+          - nvidia-container-runtime
+        state: present
+        update_cache: true
+        
+    - name: Configure NVIDIA Container Runtime
+      command: nvidia-ctk runtime configure --runtime=docker
+      notify: restart_docker
+      
+  when: gpu_support | default(false)
+  
+- name: Create Docker networks
+  docker_network:
+    name: "{{ item.name }}"
+    driver: "{{ item.driver | default('bridge') }}"
+    ipam_config:
+      - subnet: "{{ item.subnet }}"
+    state: present
+  loop:
+    - { name: 'ai-dev', subnet: '172.20.0.0/16' }
+    - { name: 'ray-cluster', subnet: '172.21.0.0/16' }
+    - { name: 'monitoring', subnet: '172.22.0.0/16' }
+  when: create_docker_networks | default(true)
+  
+- name: Create Docker volumes
+  docker_volume:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - ai-dev-data
+    - ai-dev-models
+    - ai-dev-datasets
+    - prometheus-data
+    - grafana-data
+    - jupyter-data
+  when: create_docker_volumes | default(true)
+  
+- name: Start and enable Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: true
+    daemon_reload: true
+    
+- name: Start and enable containerd service
+  systemd:
+    name: containerd
+    state: started
+    enabled: true
+    
+- name: Create Docker cleanup script
+  copy:
+    content: |
+      #!/bin/bash
+      # Docker cleanup script for AI development environment
+      
+      LOG_FILE="/var/log/ai-dev/docker-cleanup.log"
+      TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+      
+      echo "$TIMESTAMP - Starting Docker cleanup" >> "$LOG_FILE"
+      
+      # Remove stopped containers older than 24 hours
+      STOPPED_CONTAINERS=$(docker ps -a -q -f status=exited -f status=created --filter "until=24h")
+      if [ ! -z "$STOPPED_CONTAINERS" ]; then
+          echo "$TIMESTAMP - Removing stopped containers: $STOPPED_CONTAINERS" >> "$LOG_FILE"
+          docker rm $STOPPED_CONTAINERS
+      fi
+      
+      # Remove dangling images
+      DANGLING_IMAGES=$(docker images -q -f dangling=true)
+      if [ ! -z "$DANGLING_IMAGES" ]; then
+          echo "$TIMESTAMP - Removing dangling images: $DANGLING_IMAGES" >> "$LOG_FILE"
+          docker rmi $DANGLING_IMAGES
+      fi
+      
+      # Remove unused networks
+      docker network prune -f >> "$LOG_FILE" 2>&1
+      
+      # Remove unused volumes (be careful with this in production)
+      if [ "{{ docker_cleanup_volumes | default(false) }}" = "true" ]; then
+          docker volume prune -f >> "$LOG_FILE" 2>&1
+      fi
+      
+      # System prune (removes unused data)
+      docker system prune -f >> "$LOG_FILE" 2>&1
+      
+      # Log disk usage after cleanup
+      DISK_USAGE=$(df -h /var/lib/docker | awk 'NR==2{print $5}')
+      echo "$TIMESTAMP - Docker disk usage after cleanup: $DISK_USAGE" >> "$LOG_FILE"
+      
+      echo "$TIMESTAMP - Docker cleanup completed" >> "$LOG_FILE"
+    dest: /opt/ai-dev/scripts/docker-cleanup.sh
+    mode: '0755'
+    
+- name: Create Docker cleanup cron job
+  cron:
+    name: "Docker cleanup"
+    minute: "0"
+    hour: "2"
+    job: "/opt/ai-dev/scripts/docker-cleanup.sh"
+    user: root
+    
+- name: Create Docker monitoring script
+  copy:
+    content: |
+      #!/bin/bash
+      # Docker monitoring script
+      
+      LOG_FILE="/var/log/ai-dev/docker-monitor.log"
+      TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+      
+      # Container statistics
+      RUNNING_CONTAINERS=$(docker ps -q | wc -l)
+      TOTAL_CONTAINERS=$(docker ps -a -q | wc -l)
+      
+      # Image statistics
+      TOTAL_IMAGES=$(docker images -q | wc -l)
+      DANGLING_IMAGES=$(docker images -q -f dangling=true | wc -l)
+      
+      # Volume statistics
+      TOTAL_VOLUMES=$(docker volume ls -q | wc -l)
+      
+      # Network statistics
+      TOTAL_NETWORKS=$(docker network ls -q | wc -l)
+      
+      # Disk usage
+      DOCKER_DISK_USAGE=$(du -sh /var/lib/docker 2>/dev/null | cut -f1 || echo "N/A")
+      
+      # Log statistics
+      echo "$TIMESTAMP - Containers: $RUNNING_CONTAINERS running, $TOTAL_CONTAINERS total" >> "$LOG_FILE"
+      echo "$TIMESTAMP - Images: $TOTAL_IMAGES total, $DANGLING_IMAGES dangling" >> "$LOG_FILE"
+      echo "$TIMESTAMP - Volumes: $TOTAL_VOLUMES, Networks: $TOTAL_NETWORKS" >> "$LOG_FILE"
+      echo "$TIMESTAMP - Docker disk usage: $DOCKER_DISK_USAGE" >> "$LOG_FILE"
+      
+      # Check for resource-intensive containers
+      docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" | tail -n +2 | while read line; do
+          CONTAINER=$(echo $line | awk '{print $1}')
+          CPU=$(echo $line | awk '{print $2}' | sed 's/%//')
+          
+          if (( $(echo "$CPU > 80" | bc -l) 2>/dev/null )); then
+              echo "$TIMESTAMP - WARNING: High CPU usage in container $CONTAINER: ${CPU}%" >> "$LOG_FILE"
+          fi
+      done
+    dest: /opt/ai-dev/scripts/docker-monitor.sh
+    mode: '0755'
+    
+- name: Create Docker monitoring cron job
+  cron:
+    name: "Docker monitoring"
+    minute: "*/10"
+    job: "/opt/ai-dev/scripts/docker-monitor.sh"
+    user: root
+    
+- name: Create AI development Docker Compose template
+  copy:
+    content: |
+      version: '3.8'
+      
+      services:
+        jupyter:
+          image: jupyter/tensorflow-notebook:latest
+          container_name: ai-dev-jupyter
+          ports:
+            - "8888:8888"
+          volumes:
+            - jupyter-data:/home/jovyan/work
+            - ai-dev-datasets:/home/jovyan/datasets:ro
+            - ai-dev-models:/home/jovyan/models
+          environment:
+            - JUPYTER_ENABLE_LAB=yes
+            - JUPYTER_TOKEN={{ jupyter_token | default('ai-dev-token') }}
+          networks:
+            - ai-dev
+          restart: unless-stopped
+          deploy:
+            resources:
+              limits:
+                memory: {{ jupyter_memory_limit | default('4G') }}
+              reservations:
+                memory: {{ jupyter_memory_reservation | default('2G') }}
+        
+        code-server:
+          image: codercom/code-server:latest
+          container_name: ai-dev-code-server
+          ports:
+            - "8080:8080"
+          volumes:
+            - ai-dev-data:/home/coder/workspace
+            - ai-dev-datasets:/home/coder/datasets:ro
+            - ai-dev-models:/home/coder/models
+          environment:
+            - PASSWORD={{ code_server_password | default('ai-dev-password') }}
+          networks:
+            - ai-dev
+          restart: unless-stopped
+          command: |
+            --bind-addr 0.0.0.0:8080
+            --auth password
+            --disable-telemetry
+            /home/coder/workspace
+        
+        mlflow:
+          image: python:3.9-slim
+          container_name: ai-dev-mlflow
+          ports:
+            - "5000:5000"
+          volumes:
+            - ai-dev-data:/mlflow
+          environment:
+            - MLFLOW_BACKEND_STORE_URI=file:///mlflow/mlruns
+            - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+          networks:
+            - ai-dev
+          restart: unless-stopped
+          command: |
+            bash -c "pip install mlflow && 
+                     mlflow server 
+                     --host 0.0.0.0 
+                     --port 5000 
+                     --backend-store-uri file:///mlflow/mlruns 
+                     --default-artifact-root /mlflow/artifacts"
+      
+      networks:
+        ai-dev:
+          external: true
+      
+      volumes:
+        jupyter-data:
+          external: true
+        ai-dev-data:
+          external: true
+        ai-dev-datasets:
+          external: true
+        ai-dev-models:
+          external: true
+    dest: /opt/ai-dev/docker-compose.yml
+    mode: '0644'
+    
+- name: Create Docker utility scripts
+  copy:
+    content: |
+      #!/bin/bash
+      # Docker utility functions for AI development
+      
+      # Function to start AI development stack
+      start_ai_stack() {
+          echo "Starting AI development stack..."
+          cd /opt/ai-dev
+          docker-compose up -d
+          echo "AI development stack started!"
+          echo "Jupyter: http://$(hostname -I | awk '{print $1}'):8888"
+          echo "Code Server: http://$(hostname -I | awk '{print $1}'):8080"
+          echo "MLflow: http://$(hostname -I | awk '{print $1}'):5000"
+      }
+      
+      # Function to stop AI development stack
+      stop_ai_stack() {
+          echo "Stopping AI development stack..."
+          cd /opt/ai-dev
+          docker-compose down
+          echo "AI development stack stopped!"
+      }
+      
+      # Function to restart AI development stack
+      restart_ai_stack() {
+          stop_ai_stack
+          start_ai_stack
+      }
+      
+      # Function to show AI development stack status
+      status_ai_stack() {
+          echo "AI development stack status:"
+          cd /opt/ai-dev
+          docker-compose ps
+      }
+      
+      # Function to show Docker resource usage
+      docker_resources() {
+          echo "=== Docker Resource Usage ==="
+          echo "Running containers:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "Resource usage:"
+          docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"
+          echo ""
+          echo "Disk usage:"
+          docker system df
+      }
+      
+      # Function to pull latest AI development images
+      update_ai_images() {
+          echo "Updating AI development images..."
+          cd /opt/ai-dev
+          docker-compose pull
+          echo "Images updated! Run 'restart_ai_stack' to use new images."
+      }
+      
+      # Function to backup AI development data
+      backup_ai_data() {
+          BACKUP_DIR="/opt/ai-dev/backups/$(date +%Y%m%d_%H%M%S)"
+          mkdir -p "$BACKUP_DIR"
+          
+          echo "Backing up AI development data to $BACKUP_DIR..."
+          
+          # Backup Docker volumes
+          for volume in ai-dev-data ai-dev-models jupyter-data; do
+              echo "Backing up volume: $volume"
+              docker run --rm -v "$volume:/data" -v "$BACKUP_DIR:/backup" alpine tar czf "/backup/${volume}.tar.gz" -C /data .
+          done
+          
+          # Backup configuration
+          cp /opt/ai-dev/docker-compose.yml "$BACKUP_DIR/"
+          
+          echo "Backup completed: $BACKUP_DIR"
+      }
+      
+      # Function to restore AI development data
+      restore_ai_data() {
+          if [ -z "$1" ]; then
+              echo "Usage: restore_ai_data <backup_directory>"
+              return 1
+          fi
+          
+          BACKUP_DIR="$1"
+          if [ ! -d "$BACKUP_DIR" ]; then
+              echo "Backup directory not found: $BACKUP_DIR"
+              return 1
+          fi
+          
+          echo "Restoring AI development data from $BACKUP_DIR..."
+          
+          # Stop services
+          stop_ai_stack
+          
+          # Restore Docker volumes
+          for volume in ai-dev-data ai-dev-models jupyter-data; do
+              if [ -f "$BACKUP_DIR/${volume}.tar.gz" ]; then
+                  echo "Restoring volume: $volume"
+                  docker run --rm -v "$volume:/data" -v "$BACKUP_DIR:/backup" alpine sh -c "cd /data && tar xzf /backup/${volume}.tar.gz"
+              fi
+          done
+          
+          # Restore configuration
+          if [ -f "$BACKUP_DIR/docker-compose.yml" ]; then
+              cp "$BACKUP_DIR/docker-compose.yml" /opt/ai-dev/
+          fi
+          
+          echo "Restore completed! Run 'start_ai_stack' to start services."
+      }
+      
+      # Make functions available
+      case "$1" in
+          start) start_ai_stack ;;
+          stop) stop_ai_stack ;;
+          restart) restart_ai_stack ;;
+          status) status_ai_stack ;;
+          resources) docker_resources ;;
+          update) update_ai_images ;;
+          backup) backup_ai_data ;;
+          restore) restore_ai_data "$2" ;;
+          *)
+              echo "Usage: $0 {start|stop|restart|status|resources|update|backup|restore <backup_dir>}"
+              echo ""
+              echo "Commands:"
+              echo "  start     - Start AI development stack"
+              echo "  stop      - Stop AI development stack"
+              echo "  restart   - Restart AI development stack"
+              echo "  status    - Show stack status"
+              echo "  resources - Show Docker resource usage"
+              echo "  update    - Update AI development images"
+              echo "  backup    - Backup AI development data"
+              echo "  restore   - Restore AI development data"
+              ;;
+      esac
+    dest: /opt/ai-dev/scripts/docker-utils.sh
+    mode: '0755'
+    
+- name: Create Docker utility symlink
+  file:
+    src: /opt/ai-dev/scripts/docker-utils.sh
+    dest: /usr/local/bin/ai-docker
+    state: link
+    
+- name: Test Docker installation
+  docker_container:
+    name: docker-test
+    image: hello-world
+    state: started
+    auto_remove: true
+  register: docker_test
+  
+- name: Verify Docker Compose installation
+  command: docker-compose --version
+  register: compose_version
+  changed_when: false
+  
+- name: Display Docker installation info
+  debug:
+    msg: |
+      Docker installation completed successfully!
+      
+      Docker version: {{ ansible_facts.packages['docker-ce'][0].version if ansible_facts.packages['docker-ce'] is defined else 'Unknown' }}
+      Docker Compose version: {{ compose_version.stdout }}
+      
+      Docker networks created:
+      - ai-dev (172.20.0.0/16)
+      - ray-cluster (172.21.0.0/16)
+      - monitoring (172.22.0.0/16)
+      
+      Docker volumes created:
+      - ai-dev-data
+      - ai-dev-models
+      - ai-dev-datasets
+      - prometheus-data
+      - grafana-data
+      - jupyter-data
+      
+      Utility commands:
+      - ai-docker start    # Start AI development stack
+      - ai-docker status   # Show stack status
+      - ai-docker resources # Show resource usage
+      
+      Configuration file: /opt/ai-dev/docker-compose.yml
+      
+- name: Create completion marker
+  file:
+    path: /opt/ai-dev/.docker_setup_complete
+    state: touch
+    mode: '0644'
+    
+handlers:
+  - name: restart_docker
+    systemd:
+      name: docker
+      state: restarted

@@ -1,0 +1,225 @@
+# Enhanced Agent Services Configuration
+# Use with: docker compose -f docker-compose.yml -f docker-compose.agents.yml up
+
+version: "3.9"
+
+services:
+  # Enhanced agent services with better resource management and monitoring
+  
+  # Data Analyst Agent
+  data-analyst:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: data_analyst
+    image: maf-agent-data-analyst:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: data_analyst
+      ENV: prod
+      # Agent-specific configurations
+      MAX_MEMORY_MB: 512
+      PROCESSING_TIMEOUT: 300
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Security Auditor Agent
+  security-auditor:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: security_auditor
+    image: maf-agent-security-auditor:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: security_auditor
+      ENV: prod
+      SCAN_INTERVAL: 3600
+      ALERT_THRESHOLD: medium
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.15'
+
+  # Performance Monitor Agent
+  performance-monitor:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: performance_monitor
+    image: maf-agent-performance-monitor:latest
+    env_file:
+      - ../../.env
+    environment:
+      <<: *env_common
+      AGENT_ROLE: performance_monitor
+      ENV: prod
+      METRICS_INTERVAL: 60
+      ALERT_CPU_THRESHOLD: 80
+      ALERT_MEMORY_THRESHOLD: 85
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    init: true
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+  # Enhanced existing agents with resource limits
+  doc-writer:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+      replicas: 2
+    environment:
+      <<: *env_common
+      AGENT_ROLE: doc_writer
+      ENV: prod
+      MAX_CONCURRENT_TASKS: 3
+      TASK_TIMEOUT: 300
+
+  frontend-dev:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      <<: *env_common
+      AGENT_ROLE: frontend_dev
+      ENV: prod
+      NODE_OPTIONS: --max-old-space-size=512
+
+  backend-dev:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      <<: *env_common
+      AGENT_ROLE: backend_dev
+      ENV: prod
+      MAX_WORKERS: 4
+
+  compliance-checker:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.15'
+    environment:
+      <<: *env_common
+      AGENT_ROLE: compliance_checker
+      ENV: prod
+      COMPLIANCE_FRAMEWORKS: SOC2,GDPR,HIPAA
+
+  qa-tester:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    environment:
+      <<: *env_common
+      AGENT_ROLE: qa_tester
+      ENV: prod
+      TEST_PARALLEL_JOBS: 2
+      TEST_TIMEOUT: 600
+
+# Additional networks for agent isolation
+networks:
+  agent-internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# Agent-specific volumes
+volumes:
+  agent_logs:
+    driver: local
+  agent_cache:
+    driver: local
+  agent_temp:
+    driver: local

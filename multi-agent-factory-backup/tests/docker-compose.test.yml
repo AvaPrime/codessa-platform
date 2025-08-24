@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  test-db:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+      POSTGRES_DB: test_factory
+    ports:
+      - "5433:5432"
+    
+  test-redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    
+  test-nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4223:4222"
+      - "8223:8222"
+    
+  test-api:
+    build:
+      context: ../../
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      POSTGRES_URI: postgresql://test_user:test_pass@test-db:5432/test_factory
+      REDIS_HOST: test-redis
+      NATS_URL: nats://test-nats:4222
+      JWT_SECRET: test-secret-key
+    ports:
+      - "8001:8000"
+    depends_on:
+      - test-db
+      - test-redis
+      - test-nats

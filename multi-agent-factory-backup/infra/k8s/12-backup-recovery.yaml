@@ -1,0 +1,545 @@
+# PostgreSQL Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres-backup
+            app.kubernetes.io/component: backup
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: OnFailure
+          containers:
+          - name: postgres-backup
+            image: postgres:15-alpine
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              # Create timestamp
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="maf_backup_${TIMESTAMP}.sql"
+              
+              echo "Starting backup at $(date)"
+              
+              # Create database backup
+              pg_dump -h postgres -U $POSTGRES_USER -d $POSTGRES_DB > /backup/${BACKUP_FILE}
+              
+              # Compress backup
+              gzip /backup/${BACKUP_FILE}
+              
+              # Upload to S3 (if configured)
+              if [ -n "$AWS_S3_BUCKET" ]; then
+                aws s3 cp /backup/${BACKUP_FILE}.gz s3://$AWS_S3_BUCKET/postgres-backups/
+                echo "Backup uploaded to S3: s3://$AWS_S3_BUCKET/postgres-backups/${BACKUP_FILE}.gz"
+              fi
+              
+              # Clean up old local backups (keep last 7 days)
+              find /backup -name "maf_backup_*.sql.gz" -mtime +7 -delete
+              
+              # Verify backup integrity
+              if [ -f "/backup/${BACKUP_FILE}.gz" ]; then
+                gunzip -t /backup/${BACKUP_FILE}.gz
+                echo "Backup completed successfully: ${BACKUP_FILE}.gz"
+              else
+                echo "Backup failed!"
+                exit 1
+              fi
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: POSTGRES_DB
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: POSTGRES_PASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_S3_BUCKET
+                  optional: true
+            - name: AWS_DEFAULT_REGION
+              value: "us-west-2"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                - ALL
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+
+---
+# Redis Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: redis-backup
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: redis-backup
+            app.kubernetes.io/component: backup
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+          restartPolicy: OnFailure
+          containers:
+          - name: redis-backup
+            image: redis:7-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="redis_backup_${TIMESTAMP}.rdb"
+              
+              echo "Starting Redis backup at $(date)"
+              
+              # Trigger Redis save
+              redis-cli -h redis -a $REDIS_PASSWORD BGSAVE
+              
+              # Wait for background save to complete
+              while [ $(redis-cli -h redis -a $REDIS_PASSWORD LASTSAVE) -eq $(redis-cli -h redis -a $REDIS_PASSWORD LASTSAVE) ]; do
+                sleep 1
+              done
+              
+              # Copy RDB file
+              redis-cli -h redis -a $REDIS_PASSWORD --rdb /backup/${BACKUP_FILE}
+              
+              # Compress backup
+              gzip /backup/${BACKUP_FILE}
+              
+              # Upload to S3 (if configured)
+              if [ -n "$AWS_S3_BUCKET" ]; then
+                aws s3 cp /backup/${BACKUP_FILE}.gz s3://$AWS_S3_BUCKET/redis-backups/
+              fi
+              
+              # Clean up old backups
+              find /backup -name "redis_backup_*.rdb.gz" -mtime +7 -delete
+              
+              echo "Redis backup completed: ${BACKUP_FILE}.gz"
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: REDIS_PASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: maf-secrets
+                  key: AWS_S3_BUCKET
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+
+---
+# Volume Snapshot Class
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: maf-snapshot-class
+  labels:
+    app.kubernetes.io/name: maf-snapshot-class
+    app.kubernetes.io/component: backup
+driver: ebs.csi.aws.com
+deletionPolicy: Retain
+parameters:
+  encrypted: "true"
+
+---
+# PostgreSQL Volume Snapshot CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-volume-snapshot
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: postgres-volume-snapshot
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: snapshot-controller
+          restartPolicy: OnFailure
+          containers:
+          - name: snapshot-creator
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+              SNAPSHOT_NAME="postgres-snapshot-${TIMESTAMP}"
+              
+              echo "Creating volume snapshot: ${SNAPSHOT_NAME}"
+              
+              # Create volume snapshot
+              cat <<EOF | kubectl apply -f -
+              apiVersion: snapshot.storage.k8s.io/v1
+              kind: VolumeSnapshot
+              metadata:
+                name: ${SNAPSHOT_NAME}
+                namespace: multi-agent-factory
+                labels:
+                  app.kubernetes.io/name: postgres-snapshot
+                  app.kubernetes.io/component: backup
+                  backup.maf.io/type: postgres
+                  backup.maf.io/timestamp: "${TIMESTAMP}"
+              spec:
+                volumeSnapshotClassName: maf-snapshot-class
+                source:
+                  persistentVolumeClaimName: postgres-pvc
+              EOF
+              
+              # Wait for snapshot to be ready
+              kubectl wait --for=condition=ReadyToUse volumesnapshot/${SNAPSHOT_NAME} -n multi-agent-factory --timeout=300s
+              
+              echo "Volume snapshot created successfully: ${SNAPSHOT_NAME}"
+              
+              # Clean up old snapshots (keep last 7 days)
+              kubectl get volumesnapshots -n multi-agent-factory -l backup.maf.io/type=postgres -o json | \
+                jq -r '.items[] | select(.metadata.creationTimestamp < (now - 7*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | .metadata.name' | \
+                xargs -r kubectl delete volumesnapshot -n multi-agent-factory
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+
+---
+# Backup Storage PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backup-pvc
+    app.kubernetes.io/component: backup
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: backup-storage
+  resources:
+    requests:
+      storage: 100Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backup-storage
+      app.kubernetes.io/component: backup
+
+---
+# Disaster Recovery Job Template
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-restore-template
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: postgres-restore
+    app.kubernetes.io/component: recovery
+  annotations:
+    # This is a template - modify before applying
+    backup.maf.io/restore-from: "BACKUP_FILE_NAME"
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      restartPolicy: Never
+      containers:
+      - name: postgres-restore
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          BACKUP_FILE="$RESTORE_BACKUP_FILE"
+          
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "Error: RESTORE_BACKUP_FILE environment variable not set"
+            exit 1
+          fi
+          
+          echo "Starting restore from backup: $BACKUP_FILE"
+          
+          # Wait for database to be ready
+          until pg_isready -h postgres -U $POSTGRES_USER; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+          
+          # Drop existing connections
+          psql -h postgres -U $POSTGRES_USER -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();"
+          
+          # Drop and recreate database
+          psql -h postgres -U $POSTGRES_USER -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB;"
+          psql -h postgres -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $POSTGRES_DB;"
+          
+          # Restore from backup
+          if [[ $BACKUP_FILE == *.gz ]]; then
+            gunzip -c /backup/$BACKUP_FILE | psql -h postgres -U $POSTGRES_USER -d $POSTGRES_DB
+          else
+            psql -h postgres -U $POSTGRES_USER -d $POSTGRES_DB < /backup/$BACKUP_FILE
+          fi
+          
+          echo "Database restore completed successfully"
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: POSTGRES_DB
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: POSTGRES_PASSWORD
+        - name: RESTORE_BACKUP_FILE
+          value: ""  # Set this when running the restore
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backup
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-pvc
+
+---
+# ServiceAccount for snapshot operations
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: snapshot-controller
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: snapshot-controller
+    app.kubernetes.io/component: backup
+
+---
+# Role for snapshot operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: snapshot-controller
+  namespace: multi-agent-factory
+rules:
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshots"]
+  verbs: ["get", "list", "create", "delete", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+# RoleBinding for snapshot operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: snapshot-controller
+  namespace: multi-agent-factory
+subjects:
+- kind: ServiceAccount
+  name: snapshot-controller
+  namespace: multi-agent-factory
+roleRef:
+  kind: Role
+  name: snapshot-controller
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Backup Monitoring ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backup-monitor
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backup-monitor
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backup
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+# Backup Retention Policy ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-retention-policy
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backup-retention-policy
+    app.kubernetes.io/component: backup
+data:
+  policy.yaml: |
+    retention:
+      daily_backups: 7
+      weekly_backups: 4
+      monthly_backups: 12
+      yearly_backups: 3
+    
+    storage:
+      local_retention_days: 7
+      s3_retention_days: 90
+      glacier_transition_days: 30
+    
+    verification:
+      test_restore_frequency: weekly
+      integrity_check_frequency: daily
+    
+    alerts:
+      backup_failure_threshold: 2
+      restore_test_failure_threshold: 1
+      storage_usage_threshold: 80

@@ -1,0 +1,303 @@
+# NATS Messaging System Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/component: messaging
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nats
+        app.kubernetes.io/component: messaging
+        app.kubernetes.io/part-of: multi-agent-factory
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7777"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nats
+        image: nats:2.10-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 4222
+          name: client
+        - containerPort: 6222
+          name: cluster
+        - containerPort: 8222
+          name: monitor
+        - containerPort: 7777
+          name: metrics
+        command:
+        - /nats-server
+        - --config
+        - /etc/nats/nats.conf
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_ADVERTISE
+          value: $(POD_NAME).nats.$(POD_NAMESPACE).svc.cluster.local
+        volumeMounts:
+        - name: nats-storage
+          mountPath: /data
+        - name: nats-config
+          mountPath: /etc/nats
+        - name: nats-auth
+          mountPath: /etc/nats-auth
+          readOnly: true
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+            ephemeral-storage: 500Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+            ephemeral-storage: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8222
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      # NATS Exporter for monitoring
+      - name: nats-exporter
+        image: natsio/prometheus-nats-exporter:0.12.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 7777
+          name: metrics
+        args:
+        - -connz
+        - -routez
+        - -subz
+        - -varz
+        - -prefix=nats
+        - -use_internal_server_id
+        - http://localhost:8222
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: nats-storage
+        persistentVolumeClaim:
+          claimName: nats-pvc
+      - name: nats-config
+        configMap:
+          name: nats-config
+      - name: nats-auth
+        secret:
+          secretName: maf-secrets
+          items:
+          - key: NATS_AUTH_TOKEN
+            path: auth_token
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+      - key: "messaging"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                  - messaging
+              topologyKey: kubernetes.io/hostname
+
+---
+# NATS Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: multi-agent-factory
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "7777"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4222
+    targetPort: 4222
+    protocol: TCP
+    name: client
+  - port: 6222
+    targetPort: 6222
+    protocol: TCP
+    name: cluster
+  - port: 8222
+    targetPort: 8222
+    protocol: TCP
+    name: monitor
+  - port: 7777
+    targetPort: 7777
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging
+
+---
+# NATS Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging
+data:
+  nats.conf: |
+    # Network
+    port: 4222
+    monitor_port: 8222
+    
+    # Server settings
+    server_name: $POD_NAME
+    
+    # Logging
+    log_file: "/dev/stdout"
+    logtime: true
+    debug: false
+    trace: false
+    
+    # Limits
+    max_connections: 64K
+    max_control_line: 4KB
+    max_payload: 1MB
+    max_pending: 64MB
+    max_subscriptions: 0
+    
+    # Authentication
+    authorization {
+      token: $NATS_AUTH_TOKEN
+    }
+    
+    # JetStream
+    jetstream {
+      store_dir: "/data/jetstream"
+      max_memory_store: 512MB
+      max_file_store: 2GB
+    }
+    
+    # Clustering (for future scaling)
+    cluster {
+      name: maf-cluster
+      port: 6222
+      
+      authorization {
+        user: cluster
+        password: $NATS_CLUSTER_PASSWORD
+        timeout: 2
+      }
+      
+      routes = [
+        nats://nats-0.nats.multi-agent-factory.svc.cluster.local:6222
+      ]
+    }
+    
+    # Monitoring
+    http_port: 8222
+    
+    # Performance tuning
+    write_deadline: "2s"
+    
+    # Security
+    tls {
+      cert_file: "/etc/nats-certs/tls.crt"
+      key_file: "/etc/nats-certs/tls.key"
+      ca_file: "/etc/nats-certs/ca.crt"
+      verify: true
+      timeout: 5
+    }
+
+---
+# NATS Headless Service for StatefulSet (future clustering)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-headless
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: multi-agent-factory
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 4222
+    targetPort: 4222
+    protocol: TCP
+    name: client
+  - port: 6222
+    targetPort: 6222
+    protocol: TCP
+    name: cluster
+  selector:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/component: messaging

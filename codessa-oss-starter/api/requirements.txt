@@ -1,0 +1,12 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+langchain==0.2.16
+langchain-postgres==0.0.7
+pydantic-ai==0.0.8
+langgraph==0.2.34
+temporalio==1.7.0
+guardrails-ai==0.5.1
+ragas==0.1.16
+trulens-eval==0.25.1
+psycopg[binary]==3.2.1

@@ -1,0 +1,50 @@
+{{- if .Values.ray.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ray-head
+  labels: { app: maf, component: ray, role: head }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: maf, component: ray, role: head } }
+  template:
+    metadata:
+      labels: { app: maf, component: ray, role: head }
+    spec:
+      containers:
+        - name: ray
+          image: rayproject/ray:2.34.0
+          args: ["ray", "start", "--head", "--dashboard-host=0.0.0.0"]
+          resources:
+            requests: { cpu: {{ .Values.ray.head.cpu | quote }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ray-head
+spec:
+  selector: { app: maf, component: ray, role: head }
+  ports:
+    - name: client
+      port: 10001
+      targetPort: 10001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ray-workers
+  labels: { app: maf, component: ray, role: worker }
+spec:
+  replicas: {{ .Values.ray.workers.count }}
+  selector: { matchLabels: { app: maf, component: ray, role: worker } }
+  template:
+    metadata:
+      labels: { app: maf, component: ray, role: worker }
+    spec:
+      containers:
+        - name: ray
+          image: rayproject/ray:2.34.0
+          args: ["ray", "start", "--address=ray-head:6379"]
+          resources:
+            requests: { cpu: {{ .Values.ray.workers.cpu | quote }} }
+{{- end }}

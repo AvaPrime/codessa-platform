@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maf-config
+  namespace: multi-agent-factory
+data:
+  models.yaml: |
+    profiles:
+      deep_reasoning:
+        provider: openai
+        model: gpt-5
+        reasoning_effort: high
+        max_output_tokens: 8000
+        temperature: 0.7
+      structured_code:
+        provider: openai
+        model: gpt-4o
+        temperature: 0.2
+        max_output_tokens: 4000
+      economical:
+        provider: openai
+        model: gpt-4o-mini
+        temperature: 0.3
+        max_output_tokens: 2000
+    role_mappings:
+      doc_writer: structured_code
+      frontend_dev: deep_reasoning
+      backend_dev: deep_reasoning
+      qa_tester: economical
+      compliance_checker: structured_code

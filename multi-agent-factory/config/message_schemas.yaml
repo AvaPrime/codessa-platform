@@ -1,0 +1,47 @@
+# Message Schema Registry Configuration
+schema_registry:
+  version: "1.0"
+  
+  # Schema validation settings
+  validation:
+    strict_mode: true
+    allow_unknown_fields: false
+    validate_on_publish: true
+    validate_on_consume: true
+  
+  # Message type mappings
+  message_types:
+    task:
+      schema_class: "TaskMessage"
+      subjects: ["tasks.*"]
+      required_fields: ["task_id", "role", "payload"]
+      max_size_bytes: 1048576  # 1MB
+      ttl_seconds: 3600
+    
+    result:
+      schema_class: "ResultMessage"
+      subjects: ["results.>"]
+      required_fields: ["task_id", "role", "result_type"]
+      max_size_bytes: 10485760  # 10MB
+      ttl_seconds: 604800  # 7 days
+    
+    status:
+      schema_class: "StatusMessage"
+      subjects: ["status.*"]
+      required_fields: ["task_id", "status"]
+      max_size_bytes: 4096  # 4KB
+      ttl_seconds: 300
+  
+  # Security settings
+  security:
+    require_signature: true
+    signature_algorithm: "HMAC-SHA256"
+    max_message_age_seconds: 300
+    key_rotation_days: 30
+  
+  # Dead letter queue settings
+  dead_letter:
+    enabled: true
+    max_retries: 3
+    retry_backoff_seconds: [1, 5, 15]
+    subjects: ["dead_letter.>"]

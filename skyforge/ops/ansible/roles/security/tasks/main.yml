@@ -1,0 +1,63 @@
+---
+# Security Role - Hardens the system based on the Tailscale-first architecture.
+# GOAL: Block all public ingress, harden SSH, and enable automatic security updates.
+
+- name: Install essential security tools
+  apt:
+    name:
+      - ufw                  # Uncomplicated Firewall
+      - fail2ban             # Protects the initial public SSH port
+      - unattended-upgrades  # Automatic security patches
+    state: present
+
+- name: Configure SSH daemon for security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    validate: 'sshd -t -f %s' # Validate config before applying
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?ChallengeResponseAuthentication', line: 'ChallengeResponseAuthentication no' }
+    - { regexp: '^#?UsePAM', line: 'UsePAM yes' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+  notify: restart sshd
+  # NOTE: We allow PubkeyAuthentication, which is the default and required.
+
+- name: Configure and enable the firewall (UFW)
+  ufw:
+    state: enabled
+    policy: "{{ item.policy }}"
+    direction: "{{ item.direction }}"
+  loop:
+    - { policy: 'deny', direction: 'incoming' }
+    - { policy: 'allow', direction: 'outgoing' }
+    - { policy: 'deny', direction: 'routed' }
+
+- name: Allow initial SSH access on the public port (will be secured by Fail2ban)
+  ufw:
+    rule: allow
+    port: '22'
+    proto: tcp
+    comment: 'Allow initial SSH for Ansible bootstrapping'
+  # This rule is a concession for the initial setup. Post-setup, you could
+  # even disable this and rely solely on 'tailscale ssh'.
+
+- name: Enable and configure unattended-upgrades
+  copy:
+    src: files/50unattended-upgrades
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    owner: root
+    group: root
+    mode: '0644'
+  # This requires a new file to be created, see below.
+
+- name: Ensure handlers are present
+  meta: flush_handlers
+
+handlers:
+  - name: restart sshd
+    service:
+      name: sshd
+      state: restarted

@@ -1,0 +1,570 @@
+---
+# GitHub Actions Runner role - Self-hosted runner setup
+# This role installs and configures GitHub Actions self-hosted runners
+
+- name: Install GitHub runner dependencies
+  package:
+    name:
+      - curl
+      - wget
+      - tar
+      - gzip
+      - jq
+      - git
+      - build-essential
+      - libssl-dev
+      - libffi-dev
+      - python3
+      - python3-pip
+      - python3-venv
+      - nodejs
+      - npm
+      - docker.io
+      - docker-compose
+    state: present
+    
+- name: Create GitHub runner directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ github_runner_user | default('runner') }}"
+    group: "{{ github_runner_user | default('runner') }}"
+  loop:
+    - /opt/ai-dev/github-runner
+    - /opt/ai-dev/github-runner/actions-runner
+    - /opt/ai-dev/github-runner/work
+    - /opt/ai-dev/github-runner/logs
+    - /opt/ai-dev/github-runner/config
+    - /opt/ai-dev/github-runner/scripts
+    - /home/{{ github_runner_user | default('runner') }}/.github
+    
+- name: Create GitHub runner user
+  user:
+    name: "{{ github_runner_user | default('runner') }}"
+    system: false
+    shell: /bin/bash
+    home: /home/{{ github_runner_user | default('runner') }}
+    create_home: true
+    groups:
+      - docker
+      - sudo
+    append: true
+    
+- name: Add runner user to sudoers
+  lineinfile:
+    path: /etc/sudoers.d/github-runner
+    line: "{{ github_runner_user | default('runner') }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    mode: '0440'
+    validate: 'visudo -cf %s'
+    
+- name: Download GitHub Actions runner
+  get_url:
+    url: "https://github.com/actions/runner/releases/download/v{{ github_runner_version | default('2.311.0') }}/actions-runner-linux-x64-{{ github_runner_version | default('2.311.0') }}.tar.gz"
+    dest: "/tmp/actions-runner-linux-x64-{{ github_runner_version | default('2.311.0') }}.tar.gz"
+    mode: '0644'
+    
+- name: Extract GitHub Actions runner
+  unarchive:
+    src: "/tmp/actions-runner-linux-x64-{{ github_runner_version | default('2.311.0') }}.tar.gz"
+    dest: /opt/ai-dev/github-runner/actions-runner
+    remote_src: true
+    owner: "{{ github_runner_user | default('runner') }}"
+    group: "{{ github_runner_user | default('runner') }}"
+    
+- name: Install runner dependencies
+  command: /opt/ai-dev/github-runner/actions-runner/bin/installdependencies.sh
+  become: true
+  changed_when: false
+  
+- name: Create runner configuration script
+  copy:
+    content: |
+      #!/bin/bash
+      # GitHub Actions Runner Configuration Script
+      
+      set -e
+      
+      # Configuration variables
+      GITHUB_URL="{{ github_repo_url | default('https://github.com/your-org/your-repo') }}"
+      GITHUB_TOKEN="{{ github_runner_token | default('') }}"
+      RUNNER_NAME="{{ github_runner_name | default(ansible_hostname + '-ai-dev') }}"
+      RUNNER_LABELS="{{ github_runner_labels | default('ai-dev,gpu,docker,python,ray,ml') }}"
+      RUNNER_GROUP="{{ github_runner_group | default('default') }}"
+      RUNNER_WORK_DIR="/opt/ai-dev/github-runner/work"
+      
+      # Function to get registration token
+      get_registration_token() {
+          if [ -z "$GITHUB_TOKEN" ]; then
+              echo "Error: GITHUB_TOKEN is not set"
+              echo "Please set the github_runner_token variable with a valid GitHub token"
+              exit 1
+          fi
+          
+          # Extract owner and repo from URL
+          REPO_PATH=$(echo "$GITHUB_URL" | sed 's|https://github.com/||')
+          
+          # Get registration token from GitHub API
+          REGISTRATION_TOKEN=$(curl -s -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$REPO_PATH/actions/runners/registration-token" | \
+              jq -r '.token')
+              
+          if [ "$REGISTRATION_TOKEN" = "null" ] || [ -z "$REGISTRATION_TOKEN" ]; then
+              echo "Error: Failed to get registration token"
+              echo "Please check your GitHub token and repository URL"
+              exit 1
+          fi
+          
+          echo "$REGISTRATION_TOKEN"
+      }
+      
+      # Function to configure runner
+      configure_runner() {
+          echo "Configuring GitHub Actions runner..."
+          
+          cd /opt/ai-dev/github-runner/actions-runner
+          
+          # Get registration token
+          REG_TOKEN=$(get_registration_token)
+          
+          # Configure the runner
+          ./config.sh \
+              --url "$GITHUB_URL" \
+              --token "$REG_TOKEN" \
+              --name "$RUNNER_NAME" \
+              --labels "$RUNNER_LABELS" \
+              --runnergroup "$RUNNER_GROUP" \
+              --work "$RUNNER_WORK_DIR" \
+              --replace \
+              --unattended
+              
+          echo "Runner configured successfully!"
+      }
+      
+      # Function to remove runner
+      remove_runner() {
+          echo "Removing GitHub Actions runner..."
+          
+          cd /opt/ai-dev/github-runner/actions-runner
+          
+          # Get removal token
+          REPO_PATH=$(echo "$GITHUB_URL" | sed 's|https://github.com/||')
+          REMOVAL_TOKEN=$(curl -s -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$REPO_PATH/actions/runners/remove-token" | \
+              jq -r '.token')
+              
+          if [ "$REMOVAL_TOKEN" != "null" ] && [ -n "$REMOVAL_TOKEN" ]; then
+              ./config.sh remove --token "$REMOVAL_TOKEN"
+              echo "Runner removed successfully!"
+          else
+              echo "Warning: Could not get removal token, manual cleanup may be required"
+          fi
+      }
+      
+      # Function to start runner
+      start_runner() {
+          echo "Starting GitHub Actions runner..."
+          cd /opt/ai-dev/github-runner/actions-runner
+          ./run.sh
+      }
+      
+      # Function to check runner status
+      status_runner() {
+          echo "=== GitHub Actions Runner Status ==="
+          
+          if systemctl is-active --quiet github-runner; then
+              echo "✓ Runner service: Running"
+          else
+              echo "✗ Runner service: Stopped"
+          fi
+          
+          if [ -f "/opt/ai-dev/github-runner/actions-runner/.runner" ]; then
+              echo "✓ Runner configuration: Present"
+              
+              # Show runner info
+              cd /opt/ai-dev/github-runner/actions-runner
+              echo ""
+              echo "Runner Name: $(cat .runner | jq -r '.agentName')"
+              echo "Runner ID: $(cat .runner | jq -r '.agentId')"
+              echo "Pool ID: $(cat .runner | jq -r '.poolId')"
+              echo "Server URL: $(cat .runner | jq -r '.serverUrl')"
+          else
+              echo "✗ Runner configuration: Missing"
+          fi
+          
+          echo ""
+          echo "Work Directory: $RUNNER_WORK_DIR"
+          echo "Logs Directory: /opt/ai-dev/github-runner/logs"
+      }
+      
+      # Main command dispatcher
+      case "$1" in
+          configure)
+              configure_runner
+              ;;
+          remove)
+              remove_runner
+              ;;
+          start)
+              start_runner
+              ;;
+          status)
+              status_runner
+              ;;
+          *)
+              echo "GitHub Actions Runner Management Script"
+              echo ""
+              echo "Usage: $0 {configure|remove|start|status}"
+              echo ""
+              echo "Commands:"
+              echo "  configure - Configure the runner with GitHub"
+              echo "  remove    - Remove the runner from GitHub"
+              echo "  start     - Start the runner (foreground)"
+              echo "  status    - Show runner status"
+              echo ""
+              echo "Environment Variables:"
+              echo "  GITHUB_URL    - GitHub repository URL"
+              echo "  GITHUB_TOKEN  - GitHub personal access token"
+              echo "  RUNNER_NAME   - Runner name (default: hostname-ai-dev)"
+              echo "  RUNNER_LABELS - Runner labels (default: ai-dev,gpu,docker,python,ray,ml)"
+              exit 1
+              ;;
+      esac
+    dest: /opt/ai-dev/scripts/github-runner.sh
+    mode: '0755'
+    owner: "{{ github_runner_user | default('runner') }}"
+    group: "{{ github_runner_user | default('runner') }}"
+    
+- name: Create GitHub runner systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=GitHub Actions Runner
+      After=network.target docker.service
+      Wants=network.target
+      Requires=docker.service
+      
+      [Service]
+      Type=simple
+      User={{ github_runner_user | default('runner') }}
+      Group={{ github_runner_user | default('runner') }}
+      WorkingDirectory=/opt/ai-dev/github-runner/actions-runner
+      Environment=HOME=/home/{{ github_runner_user | default('runner') }}
+      Environment=USER={{ github_runner_user | default('runner') }}
+      Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+      Environment=RUNNER_ALLOW_RUNASROOT=1
+      Environment=ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1
+      ExecStart=/opt/ai-dev/github-runner/actions-runner/run.sh
+      ExecStop=/bin/kill -TERM $MAINPID
+      Restart=always
+      RestartSec=10
+      TimeoutStartSec=60
+      TimeoutStopSec=30
+      KillMode=process
+      KillSignal=SIGTERM
+      
+      # Resource limits
+      LimitNOFILE=65536
+      LimitNPROC=32768
+      
+      # Security settings
+      NoNewPrivileges=false
+      PrivateTmp=false
+      ProtectSystem=false
+      ProtectHome=false
+      
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/github-runner.service
+    
+- name: Create runner environment file
+  copy:
+    content: |
+      # GitHub Actions Runner Environment Configuration
+      # Generated by Ansible on {{ ansible_date_time.iso8601 }}
+      
+      # GitHub configuration
+      GITHUB_URL={{ github_repo_url | default('https://github.com/your-org/your-repo') }}
+      GITHUB_TOKEN={{ github_runner_token | default('') }}
+      RUNNER_NAME={{ github_runner_name | default(ansible_hostname + '-ai-dev') }}
+      RUNNER_LABELS={{ github_runner_labels | default('ai-dev,gpu,docker,python,ray,ml') }}
+      RUNNER_GROUP={{ github_runner_group | default('default') }}
+      RUNNER_WORK_DIR=/opt/ai-dev/github-runner/work
+      
+      # System configuration
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+      RUNNER_ALLOW_RUNASROOT=1
+      ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1
+      
+      # AI/ML environment
+      PYTHONPATH=/opt/ai-dev:/opt/ai-dev/ray:$PYTHONPATH
+      RAY_ADDRESS=ray://{{ ray_head_ip | default(ansible_default_ipv4.address) }}:{{ ray_head_port | default(10001) }}
+      CUDA_VISIBLE_DEVICES={{ cuda_visible_devices | default('all') }}
+      
+      # Docker configuration
+      DOCKER_HOST=unix:///var/run/docker.sock
+      COMPOSE_PROJECT_NAME=ai-dev
+      
+      # Monitoring
+      PROMETHEUS_URL=http://{{ ansible_default_ipv4.address }}:{{ prometheus_port | default(9090) }}
+      GRAFANA_URL=http://{{ ansible_default_ipv4.address }}:{{ grafana_port | default(3000) }}
+    dest: /opt/ai-dev/github-runner/config/runner.env
+    mode: '0600'
+    owner: "{{ github_runner_user | default('runner') }}"
+    group: "{{ github_runner_user | default('runner') }}"
+    
+- name: Create runner utility symlink
+  file:
+    src: /opt/ai-dev/scripts/github-runner.sh
+    dest: /usr/local/bin/ai-runner
+    state: link
+    
+- name: Create runner workflow templates
+  copy:
+    content: |
+      # AI/ML Workflow Templates for GitHub Actions
+      # Place these in your repository's .github/workflows/ directory
+      
+      # 1. Basic AI/ML Pipeline (ai-ml-pipeline.yml)
+      name: AI/ML Pipeline
+      
+      on:
+        push:
+          branches: [ main, develop ]
+        pull_request:
+          branches: [ main ]
+        workflow_dispatch:
+      
+      jobs:
+        ai-ml-pipeline:
+          runs-on: [self-hosted, ai-dev]
+          
+          steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+            
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: '3.11'
+              
+          - name: Install dependencies
+            run: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              
+          - name: Run tests
+            run: |
+              python -m pytest tests/ -v
+              
+          - name: Train model
+            run: |
+              python scripts/train_model.py
+              
+          - name: Evaluate model
+            run: |
+              python scripts/evaluate_model.py
+              
+          - name: Deploy model
+            if: github.ref == 'refs/heads/main'
+            run: |
+              python scripts/deploy_model.py
+      
+      # 2. Ray Distributed Training (ray-training.yml)
+      name: Ray Distributed Training
+      
+      on:
+        workflow_dispatch:
+          inputs:
+            model_type:
+              description: 'Model type to train'
+              required: true
+              default: 'transformer'
+              type: choice
+              options:
+                - transformer
+                - cnn
+                - lstm
+      
+      jobs:
+        ray-training:
+          runs-on: [self-hosted, ai-dev, gpu]
+          
+          steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+            
+          - name: Connect to Ray cluster
+            run: |
+              ray status --address=$RAY_ADDRESS
+              
+          - name: Run distributed training
+            run: |
+              python -m ray.train.torch scripts/distributed_training.py \
+                --model-type ${{ github.event.inputs.model_type }} \
+                --num-workers 4 \
+                --use-gpu
+              
+          - name: Upload model artifacts
+            uses: actions/upload-artifact@v3
+            with:
+              name: trained-model-${{ github.event.inputs.model_type }}
+              path: models/
+      
+      # 3. Docker Build and Push (docker-build.yml)
+      name: Docker Build and Push
+      
+      on:
+        push:
+          branches: [ main ]
+          tags: [ 'v*' ]
+      
+      jobs:
+        docker:
+          runs-on: [self-hosted, ai-dev, docker]
+          
+          steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+            
+          - name: Set up Docker Buildx
+            uses: docker/setup-buildx-action@v3
+            
+          - name: Login to Docker Hub
+            uses: docker/login-action@v3
+            with:
+              username: ${{ secrets.DOCKER_USERNAME }}
+              password: ${{ secrets.DOCKER_PASSWORD }}
+              
+          - name: Extract metadata
+            id: meta
+            uses: docker/metadata-action@v5
+            with:
+              images: your-org/ai-model
+              tags: |
+                type=ref,event=branch
+                type=ref,event=pr
+                type=semver,pattern={{version}}
+                type=semver,pattern={{major}}.{{minor}}
+                
+          - name: Build and push
+            uses: docker/build-push-action@v5
+            with:
+              context: .
+              push: true
+              tags: ${{ steps.meta.outputs.tags }}
+              labels: ${{ steps.meta.outputs.labels }}
+              cache-from: type=gha
+              cache-to: type=gha,mode=max
+    dest: /opt/ai-dev/github-runner/config/workflow-templates.yml
+    mode: '0644'
+    owner: "{{ github_runner_user | default('runner') }}"
+    group: "{{ github_runner_user | default('runner') }}"
+    
+- name: Create runner monitoring script
+  copy:
+    content: |
+      #!/bin/bash
+      # GitHub Actions Runner monitoring script
+      
+      LOG_FILE="/var/log/ai-dev/github-runner-monitor.log"
+      TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+      
+      # Check if runner service is running
+      if ! systemctl is-active --quiet github-runner; then
+          echo "$TIMESTAMP - WARNING: GitHub runner service is not running" >> "$LOG_FILE"
+          
+          # Try to restart
+          systemctl restart github-runner
+          sleep 10
+          
+          if systemctl is-active --quiet github-runner; then
+              echo "$TIMESTAMP - INFO: GitHub runner service restarted successfully" >> "$LOG_FILE"
+          else
+              echo "$TIMESTAMP - ERROR: Failed to restart GitHub runner service" >> "$LOG_FILE"
+          fi
+      else
+          echo "$TIMESTAMP - INFO: GitHub runner service is running" >> "$LOG_FILE"
+      fi
+      
+      # Check runner configuration
+      if [ ! -f "/opt/ai-dev/github-runner/actions-runner/.runner" ]; then
+          echo "$TIMESTAMP - WARNING: Runner configuration file missing" >> "$LOG_FILE"
+      fi
+      
+      # Check work directory space
+      WORK_DIR_USAGE=$(du -sh /opt/ai-dev/github-runner/work 2>/dev/null | cut -f1 || echo "0")
+      echo "$TIMESTAMP - INFO: Runner work directory usage: $WORK_DIR_USAGE" >> "$LOG_FILE"
+      
+      # Clean up old workflow runs (keep last 10)
+      find /opt/ai-dev/github-runner/work -maxdepth 1 -type d -name "_actions" -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+      find /opt/ai-dev/github-runner/work -maxdepth 1 -type d -name "_temp" -mtime +1 -exec rm -rf {} + 2>/dev/null || true
+      
+      # Clean up old logs (keep last 30 days)
+      find /opt/ai-dev/github-runner/logs -name "*.log" -type f -mtime +30 -delete 2>/dev/null || true
+    dest: /opt/ai-dev/scripts/github-runner-monitor.sh
+    mode: '0755'
+    
+- name: Create runner monitoring cron job
+  cron:
+    name: "GitHub runner monitoring"
+    minute: "*/5"
+    job: "/opt/ai-dev/scripts/github-runner-monitor.sh"
+    user: root
+    
+- name: Configure runner (if token provided)
+  command: /opt/ai-dev/scripts/github-runner.sh configure
+  become_user: "{{ github_runner_user | default('runner') }}"
+  when: github_runner_token is defined and github_runner_token != ''
+  register: runner_config_result
+  changed_when: runner_config_result.rc == 0
+  
+- name: Enable and start GitHub runner service
+  systemd:
+    name: github-runner
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: github_runner_token is defined and github_runner_token != ''
+  
+- name: Display GitHub runner setup information
+  debug:
+    msg: |
+      GitHub Actions Runner setup completed!
+      
+      Configuration:
+      - Runner Name: {{ github_runner_name | default(ansible_hostname + '-ai-dev') }}
+      - Repository: {{ github_repo_url | default('https://github.com/your-org/your-repo') }}
+      - Labels: {{ github_runner_labels | default('ai-dev,gpu,docker,python,ray,ml') }}
+      - Work Directory: /opt/ai-dev/github-runner/work
+      - User: {{ github_runner_user | default('runner') }}
+      
+      {% if github_runner_token is defined and github_runner_token != '' %}
+      Status: {{ 'Configured and Running' if runner_config_result is defined and runner_config_result.rc == 0 else 'Configuration Failed' }}
+      {% else %}
+      Status: Not configured (github_runner_token not provided)
+      
+      To configure the runner:
+      1. Set the github_runner_token variable with a valid GitHub token
+      2. Run: ai-runner configure
+      3. Start the service: systemctl start github-runner
+      {% endif %}
+      
+      Utility commands:
+      - ai-runner status      # Show runner status
+      - ai-runner configure   # Configure runner
+      - ai-runner remove      # Remove runner
+      
+      Workflow templates available in:
+      /opt/ai-dev/github-runner/config/workflow-templates.yml
+      
+- name: Create completion marker
+  file:
+    path: /opt/ai-dev/.github_runner_setup_complete
+    state: touch
+    mode: '0644'

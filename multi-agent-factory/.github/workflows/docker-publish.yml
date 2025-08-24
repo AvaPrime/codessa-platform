@@ -1,0 +1,102 @@
+# File: .github/workflows/docker-publish.yml
+# Purpose: Build & publish API and agent images to Docker Hub on semver tag pushes.
+
+name: Docker Build & Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    # Build API + each agent via a job-level matrix (correct usage)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # API image
+          - image: maf-api
+            context: .
+            file: infra/docker/api.Dockerfile
+            build-args: ""
+          # Agent images (ensure arg matches your Dockerfile: ARG AGENT_ROLE=...)
+          - image: maf-agent-doc_writer
+            context: .
+            file: infra/docker/agent.Dockerfile
+            build-args: |
+              AGENT_ROLE=doc_writer
+          - image: maf-agent-frontend_dev
+            context: .
+            file: infra/docker/agent.Dockerfile
+            build-args: |
+              AGENT_ROLE=frontend_dev
+          - image: maf-agent-backend_dev
+            context: .
+            file: infra/docker/agent.Dockerfile
+            build-args: |
+              AGENT_ROLE=backend_dev
+          - image: maf-agent-compliance_checker
+            context: .
+            file: infra/docker/agent.Dockerfile
+            build-args: |
+              AGENT_ROLE=compliance_checker
+          - image: maf-agent-qa_tester
+            context: .
+            file: infra/docker/agent.Dockerfile
+            build-args: |
+              AGENT_ROLE=qa_tester
+
+    env:
+      REGISTRY: docker.io
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Generate semver tags and OCI labels; works with refs/tags/vX.Y.Z
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_USER }}/${{ matrix.image }}
+          # Produce :X.Y.Z, :X.Y, :X, and :latest for releases
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image }}
+            org.opencontainers.image.vendor=Multi-Agent Factory
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build & push ${{ matrix.image }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: ${{ matrix.build-args }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true

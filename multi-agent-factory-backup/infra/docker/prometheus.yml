@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'maf-api'
+    static_configs:
+      - targets: ['api:9091']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'maf-agents'
+    static_configs:
+      - targets: 
+        - 'doc-writer:9090'
+        - 'frontend-dev:9090'
+        - 'backend-dev:9090'
+        - 'compliance-checker:9090'
+        - 'qa-tester:9090'
+    scrape_interval: 10s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['db:5432']
+
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['nats:8222']
+    metrics_path: '/varz'

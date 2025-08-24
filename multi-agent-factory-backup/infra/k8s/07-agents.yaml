@@ -1,0 +1,635 @@
+# Document Writer Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doc-writer-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: doc-writer-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+    agent.maf.io/type: doc_writer
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: doc-writer-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: doc-writer-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: multi-agent-factory
+        agent.maf.io/type: doc_writer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-agent
+      containers:
+      - name: doc-writer
+        image: maf-agent:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: AGENT_TYPE
+          value: "doc_writer"
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NATS_URL
+          value: "nats://$(NATS_AUTH_TOKEN)@nats:4222"
+        - name: NATS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: NATS_AUTH_TOKEN
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: OPENAI_API_KEY
+        - name: MAX_CONCURRENT_TASKS
+          value: "5"
+        - name: TASK_TIMEOUT
+          value: "1800"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: agent.maf.io/type
+                  operator: In
+                  values:
+                  - doc_writer
+              topologyKey: kubernetes.io/hostname
+
+---
+# Frontend Developer Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-dev-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: frontend-dev-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+    agent.maf.io/type: frontend_dev
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend-dev-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend-dev-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: multi-agent-factory
+        agent.maf.io/type: frontend_dev
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-agent
+      containers:
+      - name: frontend-dev
+        image: maf-agent:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: AGENT_TYPE
+          value: "frontend_dev"
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NATS_URL
+          value: "nats://$(NATS_AUTH_TOKEN)@nats:4222"
+        - name: NATS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: NATS_AUTH_TOKEN
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: OPENAI_API_KEY
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: ANTHROPIC_API_KEY
+        - name: MAX_CONCURRENT_TASKS
+          value: "3"
+        - name: TASK_TIMEOUT
+          value: "2400"
+        resources:
+          requests:
+            cpu: 300m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: agent.maf.io/type
+                  operator: In
+                  values:
+                  - frontend_dev
+              topologyKey: kubernetes.io/hostname
+
+---
+# Backend Developer Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-dev-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: backend-dev-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+    agent.maf.io/type: backend_dev
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend-dev-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend-dev-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: multi-agent-factory
+        agent.maf.io/type: backend_dev
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-agent
+      containers:
+      - name: backend-dev
+        image: maf-agent:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: AGENT_TYPE
+          value: "backend_dev"
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NATS_URL
+          value: "nats://$(NATS_AUTH_TOKEN)@nats:4222"
+        - name: NATS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: NATS_AUTH_TOKEN
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: OPENAI_API_KEY
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: ANTHROPIC_API_KEY
+        - name: MAX_CONCURRENT_TASKS
+          value: "4"
+        - name: TASK_TIMEOUT
+          value: "3600"
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: agent.maf.io/type
+                  operator: In
+                  values:
+                  - backend_dev
+              topologyKey: kubernetes.io/hostname
+
+---
+# QA Tester Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qa-tester-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: qa-tester-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+    agent.maf.io/type: qa_tester
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qa-tester-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qa-tester-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: multi-agent-factory
+        agent.maf.io/type: qa_tester
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-agent
+      containers:
+      - name: qa-tester
+        image: maf-agent:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: AGENT_TYPE
+          value: "qa_tester"
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NATS_URL
+          value: "nats://$(NATS_AUTH_TOKEN)@nats:4222"
+        - name: NATS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: NATS_AUTH_TOKEN
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: OPENAI_API_KEY
+        - name: MAX_CONCURRENT_TASKS
+          value: "3"
+        - name: TASK_TIMEOUT
+          value: "2400"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 768Mi
+          limits:
+            cpu: 1200m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: agent.maf.io/type
+                  operator: In
+                  values:
+                  - qa_tester
+              topologyKey: kubernetes.io/hostname
+
+---
+# Compliance Checker Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliance-checker-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: compliance-checker-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+    agent.maf.io/type: compliance_checker
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: compliance-checker-agent
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: compliance-checker-agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: multi-agent-factory
+        agent.maf.io/type: compliance_checker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: maf-agent
+      containers:
+      - name: compliance-checker
+        image: maf-agent:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: AGENT_TYPE
+          value: "compliance_checker"
+        - name: AGENT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NATS_URL
+          value: "nats://$(NATS_AUTH_TOKEN)@nats:4222"
+        - name: NATS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: NATS_AUTH_TOKEN
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maf-secrets
+              key: OPENAI_API_KEY
+        - name: MAX_CONCURRENT_TASKS
+          value: "2"
+        - name: TASK_TIMEOUT
+          value: "1800"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 800m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: agent.maf.io/type
+                  operator: In
+                  values:
+                  - compliance_checker
+              topologyKey: kubernetes.io/hostname
+
+---
+# Service Account for Agents
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maf-agent
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: maf-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: multi-agent-factory
+automountServiceAccountToken: true
+
+---
+# Role for Agent Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maf-agent
+  namespace: multi-agent-factory
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+# RoleBinding for Agent Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: maf-agent
+  namespace: multi-agent-factory
+subjects:
+- kind: ServiceAccount
+  name: maf-agent
+  namespace: multi-agent-factory
+roleRef:
+  kind: Role
+  name: maf-agent
+  apiGroup: rbac.authorization.k8s.io

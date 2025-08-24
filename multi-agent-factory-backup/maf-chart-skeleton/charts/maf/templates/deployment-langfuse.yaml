@@ -1,0 +1,35 @@
+{{- if .Values.observability.langfuse.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse
+  labels: { app: maf, component: langfuse }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: maf, component: langfuse } }
+  template:
+    metadata:
+      labels: { app: maf, component: langfuse }
+    spec:
+      containers:
+        - name: langfuse
+          image: ghcr.io/langfuse/langfuse:latest
+          env:
+            - {name: DATABASE_URL, value: "postgres://postgres:postgres@postgres:5432/langfuse"}
+            - {name: NEXTAUTH_SECRET, valueFrom: {secretKeyRef: {name: maf-runtime, key: LANGFUSE_NEXTAUTH_SECRET}}}
+            - {name: SALT, valueFrom: {secretKeyRef: {name: maf-runtime, key: LANGFUSE_SALT}}}
+          ports:
+            - name: http
+              containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: langfuse
+spec:
+  selector: { app: maf, component: langfuse }
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+{{- end }}

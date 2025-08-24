@@ -1,0 +1,10 @@
+name: rag-eval
+on: [pull_request]
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - run: pip install ragas trulens-eval
+      - run: python rag/eval.py || echo "TODO: add eval.py and proper exit codes"

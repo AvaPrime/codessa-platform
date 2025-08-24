@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Original Aetherion services
+  aetherion:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AETHERION_ENV=production
+      - AETHERION_LOG_LEVEL=INFO
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./routing.yaml:/app/routing.yaml
+      - ./workflows:/app/workflows
+    depends_on:
+      - qdrant
+      - ollama
+    networks:
+      - aetherion-net
+      - monitoring-net
+
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - aetherion-net
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - aetherion-net
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - monitoring-net
+    depends_on:
+      - aetherion
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=aetherion123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/dashboard-configs:/var/lib/grafana/dashboards
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+
+  # Optional: Alertmanager for notifications
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - monitoring-net
+
+volumes:
+  qdrant_data:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  aetherion-net:
+    driver: bridge
+  monitoring-net:
+    driver: bridge

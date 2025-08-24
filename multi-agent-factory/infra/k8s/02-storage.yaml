@@ -1,0 +1,113 @@
+# Persistent Volume Claims for stateful components
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 50Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: database
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+    app.kubernetes.io/component: cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 10Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: cache
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nats-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+    app.kubernetes.io/component: messaging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: messaging
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vector-store-pvc
+  namespace: multi-agent-factory
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+    app.kubernetes.io/component: vector-store
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 20Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: vector-store
+
+---
+# Storage Class for fast SSD storage
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+provisioner: kubernetes.io/aws-ebs # Change based on your cloud provider
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+
+---
+# Backup Storage Class for cost-effective backups
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: backup-storage
+  labels:
+    app.kubernetes.io/name: multi-agent-factory
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: sc1 # Cold HDD for backups
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Retain

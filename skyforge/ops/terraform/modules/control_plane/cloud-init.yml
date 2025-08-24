@@ -1,0 +1,254 @@
+#cloud-config
+# Cloud-init configuration for AI Development Control Plane
+# This script runs on first boot to set up the server
+
+hostname: ${hostname}
+fqdn: ${hostname}.local
+
+# Update and upgrade packages
+package_update: true
+package_upgrade: true
+
+# Install essential packages
+packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - vim
+  - tmux
+  - unzip
+  - jq
+  - tree
+  - ncdu
+  - iotop
+  - nethogs
+  - docker.io
+  - docker-compose
+  - python3
+  - python3-pip
+  - python3-venv
+  - nodejs
+  - npm
+  - build-essential
+  - software-properties-common
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - fail2ban
+  - ufw
+  - rsync
+  - screen
+  - mosh
+  - zsh
+  - fish
+  - neofetch
+
+# Create users
+users:
+  - name: aidev
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... # Add your public key here
+
+# Configure SSH
+ssh:
+  emit_keys_to_console: false
+  disable_root: false
+  permit_root_login: true
+  password_authentication: false
+  challenge_response_authentication: false
+  pubkey_authentication: true
+  port: 22
+
+# Configure firewall
+runcmd:
+  # Update system
+  - apt-get update && apt-get upgrade -y
+  
+  # Configure UFW firewall
+  - ufw --force reset
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ssh
+  - ufw allow 8265/tcp  # Ray dashboard
+  - ufw allow 3000/tcp  # Grafana
+  - ufw allow 9090/tcp  # Prometheus
+  - ufw allow 8888/tcp  # Jupyter
+  - ufw allow 41641/udp # Tailscale
+  - ufw --force enable
+  
+  # Configure fail2ban
+  - systemctl enable fail2ban
+  - systemctl start fail2ban
+  
+  # Install Docker (latest version)
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker root
+  - usermod -aG docker aidev
+  
+  # Install Docker Compose (standalone)
+  - curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  - chmod +x /usr/local/bin/docker-compose
+  
+  # Install Tailscale
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey=${tailscale_auth_key} --hostname=${hostname}
+  
+  # Install Python packages
+  - pip3 install --upgrade pip
+  - pip3 install jupyter jupyterlab ray[default] pandas numpy matplotlib seaborn scikit-learn torch torchvision torchaudio transformers datasets accelerate
+  
+  # Install Node.js LTS
+  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  - apt-get install -y nodejs
+  
+  # Install VS Code Server
+  - wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+  - install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
+  - echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
+  - apt-get update
+  - apt-get install -y code
+  
+  # Install GitHub CLI
+  - curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  - chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+  - apt-get update
+  - apt-get install -y gh
+  
+  # Install Terraform
+  - wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+  - apt-get update && apt-get install -y terraform
+  
+  # Install Ansible
+  - pip3 install ansible ansible-core
+  
+  # Create directories
+  - mkdir -p /opt/ai-dev/{data,logs,scripts,config}
+  - mkdir -p /home/aidev/{workspace,projects}
+  - chown -R aidev:aidev /home/aidev
+  - chown -R aidev:aidev /opt/ai-dev
+  
+  # Configure Git (global)
+  - git config --global init.defaultBranch main
+  - git config --global pull.rebase false
+  
+  # Set up log rotation
+  - echo '/opt/ai-dev/logs/*.log { daily missingok rotate 7 compress delaycompress notifempty }' > /etc/logrotate.d/ai-dev
+  
+  # Create systemd service for auto-updates
+  - systemctl enable unattended-upgrades
+  
+  # Configure timezone
+  - timedatectl set-timezone UTC
+  
+  # Enable and start services
+  - systemctl enable docker
+  - systemctl enable tailscaled
+  - systemctl daemon-reload
+  
+  # Create welcome message
+  - echo 'Welcome to AI Development Control Plane!' > /etc/motd
+  - echo 'Server: ${hostname}' >> /etc/motd
+  - echo 'Services: Ray, Jupyter, Docker, Tailscale' >> /etc/motd
+  - echo 'Access: ssh aidev@$(hostname -I | awk "{print $1}")' >> /etc/motd
+  
+  # Final system update
+  - apt-get autoremove -y
+  - apt-get autoclean
+  
+  # Signal completion
+  - touch /var/log/cloud-init-complete
+  - echo "$(date): Cloud-init setup completed" >> /var/log/cloud-init-complete
+
+# Write configuration files
+write_files:
+  # Docker daemon configuration
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2",
+        "exec-opts": ["native.cgroupdriver=systemd"]
+      }
+    permissions: '0644'
+  
+  # Jupyter configuration
+  - path: /home/aidev/.jupyter/jupyter_lab_config.py
+    content: |
+      c.ServerApp.ip = '0.0.0.0'
+      c.ServerApp.port = 8888
+      c.ServerApp.open_browser = False
+      c.ServerApp.token = ''
+      c.ServerApp.password = ''
+      c.ServerApp.allow_root = True
+      c.ServerApp.notebook_dir = '/home/aidev/workspace'
+    permissions: '0644'
+    owner: aidev:aidev
+  
+  # Ray configuration
+  - path: /opt/ai-dev/config/ray.yaml
+    content: |
+      cluster_name: ai-dev-cluster
+      max_workers: 4
+      upscaling_speed: 1.0
+      idle_timeout_minutes: 5
+      head_node:
+        ray_start_params:
+          dashboard-host: 0.0.0.0
+          dashboard-port: 8265
+          include-dashboard: true
+    permissions: '0644'
+  
+  # Environment variables
+  - path: /etc/environment
+    content: |
+      PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+      PYTHONPATH="/opt/ai-dev:/home/aidev/workspace"
+      RAY_TMPDIR="/opt/ai-dev/data/ray"
+      JUPYTER_CONFIG_DIR="/home/aidev/.jupyter"
+    append: true
+  
+  # SSH configuration
+  - path: /etc/ssh/sshd_config.d/99-ai-dev.conf
+    content: |
+      # AI Development SSH Configuration
+      PermitRootLogin yes
+      PasswordAuthentication no
+      PubkeyAuthentication yes
+      X11Forwarding yes
+      ClientAliveInterval 60
+      ClientAliveCountMax 3
+      MaxAuthTries 3
+      MaxSessions 10
+    permissions: '0644'
+
+# Set timezone
+timezone: UTC
+
+# Configure locale
+locale: en_US.UTF-8
+
+# Reboot after setup (optional)
+# power_state:
+#   mode: reboot
+#   message: "Rebooting after cloud-init setup"
+#   timeout: 30
+#   condition: true
+
+# Final message
+final_message: "AI Development Control Plane setup completed successfully! System is ready for use."

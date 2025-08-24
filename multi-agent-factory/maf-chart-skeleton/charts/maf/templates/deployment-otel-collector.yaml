@@ -1,0 +1,55 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels: { app: maf, component: otel-collector }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: maf, component: otel-collector } }
+  template:
+    metadata:
+      labels: { app: maf, component: otel-collector }
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector:0.103.1
+          args: ["--config=/etc/otel-collector.yaml"]
+          volumeMounts:
+            - name: cfg
+              mountPath: /etc/otel-collector.yaml
+              subPath: otel-collector.yaml
+      volumes:
+        - name: cfg
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  otel-collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+    exporters:
+      logging: {}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [logging]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector: { app: maf, component: otel-collector }
+  ports:
+    - name: http
+      port: 4318
+      targetPort: 4318
+{{- end }}

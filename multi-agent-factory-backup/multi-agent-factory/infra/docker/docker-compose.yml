@@ -1,0 +1,152 @@
+version: "3.9"
+
+x-env-common: &env_common
+  PYTHONPATH: /app
+  PORT: "8000"
+  WORKERS: "2"
+  THREADS: "1"
+  TIMEOUT: "60"
+  KEEP_ALIVE: "5"
+  # App deps
+  POSTGRES_URI: postgres://user:pass@db:5432/factory
+  NATS_URL: nats://nats:4222
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    # Build from the multi-stage api.Dockerfile you just created
+    build:
+      context: ../..            # ← repo root (so COPY api/, memory/, llm/ work)
+      dockerfile: api.Dockerfile
+      target: runtime
+    image: docker-api:latest
+    environment:
+      <<: *env_common
+      ENV: prod
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      # App healthcheck is also in the Dockerfile, but keeping this here is fine.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${PORT}/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+    # Optional hard limits (tune for your host)
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+
+  # Development variant with live code mount + reload
+  api-dev:
+    profiles: ["dev"]
+    build:
+      context: ../..
+      dockerfile: api.Dockerfile
+      target: runtime
+    image: docker-api:dev
+    environment:
+      <<: *env_common
+      ENV: dev
+      WORKERS: "1"
+      TIMEOUT: "0"
+    command: >
+      bash -lc "uvicorn main:app --host 0.0.0.0 --port ${PORT} --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Live-mount app code; container still has deps from build
+      - ../../api:/app
+      - ../../memory:/app/memory
+      - ../../llm:/app/llm
+      - ../../orchestrator:/app/orchestrator
+      - ../../config:/app/config
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+
+  db:
+    image: ankane/pgvector:latest   # includes pgvector extension
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: factory
+    ports:
+      - "5432:5432"   # expose if you want local psql access
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d factory -h 127.0.0.1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+
+  nats:
+    image: nats:2.10-alpine
+    command: >
+      -js -m 8222
+      --http_port 8222
+      --jetstream
+    ports:
+      - "4222:4222"   # client
+      - "8222:8222"   # monitoring
+    healthcheck:
+      # Healthy when server reports status=ok
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz | grep -q 'ok'"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+    networks: [appnet]
+
+networks:
+  appnet: {}
+
+volumes:
+  dbdata: {}
+  redisdata: {}

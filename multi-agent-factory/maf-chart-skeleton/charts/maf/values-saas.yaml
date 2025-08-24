@@ -1,0 +1,11 @@
+vllm: {enabled: false}
+router:
+  policies:
+    routing:
+      default: {quality: medium, latency_budget_ms: 2000, cost_budget_usd: 0.002}
+network:
+  egressFQDNAllow:
+    - "api.openrouter.ai"
+    - "api.openai.com"
+minio: {enabled: true}
+postgres: {enabled: true}

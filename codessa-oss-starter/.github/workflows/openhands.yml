@@ -1,0 +1,13 @@
+name: openhands-fix
+on:
+  issues:
+    types: [labeled]
+jobs:
+  fix:
+    if: contains(github.event.label.name, 'fix-me')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run OpenHands
+        run: |
+          echo "Stub: plug in OpenHands container run here"

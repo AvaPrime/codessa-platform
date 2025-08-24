@@ -1,0 +1,282 @@
+# Enhanced Docker Compose with NATS, pgvector, and agent services
+# File: infra/docker/docker-compose.yml
+version: "3.9"
+
+services:
+  # PostgreSQL with pgvector extension and automatic migrations
+  db:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-factory}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d  # Auto-run migrations
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # NATS JetStream for event-driven messaging
+  nats:
+    image: nats:2.10-alpine
+    command: [
+      "-js",                          # Enable JetStream
+      "-sd", "/data",                 # Store directory
+      "-m", "8222",                   # Monitoring port
+      "--max_payload", "8MB",         # Support large payloads
+      "--max_connections", "1000"     # Support many connections
+    ]
+    ports:
+      - "4222:4222"    # Client connections
+      - "8222:8222"    # HTTP monitoring
+      - "6222:6222"    # Cluster routing
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/varz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal workflow engine
+  temporal:
+    image: temporalio/auto-setup:1.23
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-user}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-pass}
+      - POSTGRES_SEEDS=db
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    ports:
+      - "7233:7233"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Temporal UI
+  temporal-ui:
+    image: temporalio/ui:2.21.3
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+  # Main API service
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    env_file:
+      - ../../.env
+    environment:
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../api:/app
+      - ../../orchestrator:/app/../orchestrator
+      - ../../memory:/app/../memory
+      - ../../config:/app/../config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Documentation Writer Agent
+  doc-writer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: doc_writer
+    env_file:
+      - ../../.env
+    environment:
+      - AGENT_ROLE=doc_writer
+      - AGENT_ID=doc_writer_001
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../agents:/app/agents
+      - ../../memory:/app/memory
+      - ../../config:/app/config
+    restart: unless-stopped
+
+  # Frontend Developer Agent
+  frontend-dev:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: frontend_dev
+    env_file:
+      - ../../.env
+    environment:
+      - AGENT_ROLE=frontend_dev
+      - AGENT_ID=frontend_dev_001
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../agents:/app/agents
+      - ../../memory:/app/memory
+      - ../../config:/app/config
+    restart: unless-stopped
+
+  # Backend Developer Agent
+  backend-dev:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: backend_dev
+    env_file:
+      - ../../.env
+    environment:
+      - AGENT_ROLE=backend_dev
+      - AGENT_ID=backend_dev_001
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../agents:/app/agents
+      - ../../memory:/app/memory
+      - ../../config:/app/config
+    restart: unless-stopped
+
+  # QA Tester Agent
+  qa-tester:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: qa_tester
+    env_file:
+      - ../../.env
+    environment:
+      - AGENT_ROLE=qa_tester
+      - AGENT_ID=qa_tester_001
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../agents:/app/agents
+      - ../../memory:/app/memory
+      - ../../config:/app/config
+    restart: unless-stopped
+
+  # Compliance Checker Agent
+  compliance-checker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/agent.Dockerfile
+      args:
+        AGENT_ROLE: compliance_checker
+    env_file:
+      - ../../.env
+    environment:
+      - AGENT_ROLE=compliance_checker
+      - AGENT_ID=compliance_checker_001
+      - POSTGRES_URI=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-pass}@db:5432/${POSTGRES_DB:-factory}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ../../agents:/app/agents
+      - ../../memory:/app/memory
+      - ../../config:/app/config
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+
+networks:
+  default:
+    driver: bridge

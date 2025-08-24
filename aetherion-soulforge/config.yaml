@@ -1,0 +1,47 @@
+---  
+# Agent selection per *task.type* 
+routing: 
+  # Whisperer tasks
+  memorize: whisperer 
+  recall: whisperer 
+  ask: whisperer 
+  consciousness: whisperer
+  
+  # Architect tasks
+  compose: architect
+  refactor: architect
+  
+  # Builder tasks
+  build: builder
+  run: builder
+  test: builder
+  
+  # Validator tasks
+  tests: validator
+  lint: validator
+  
+  # Script runner tasks
+  script: script_runner
+  
+  # default: local_llm 
+  default: whisperer # falls back to local LLM for any task
+
+# Qdrant (vector store) settings 
+qdrant: 
+  url: http://localhost:6333 
+  collection: aether_memory 
+
+# Ollama settings 
+ollama: 
+  url: http://localhost:11434 
+  models: 
+    whisperer: mistral:7b        # used by Whisperer for text generation 
+    local_llm: codellama:13b     # used by other agents
+    architect: deepseek-coder:7b # used by Architect for code tasks
+
+# Log level (DEBUG|INFO|WARNING|ERROR) 
+log_level: INFO
+
+# Budget settings
+budget:
+  daily_limit_usd: 1.0  # Daily budget limit in USD

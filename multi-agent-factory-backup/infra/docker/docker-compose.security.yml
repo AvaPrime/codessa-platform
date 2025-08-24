@@ -1,0 +1,112 @@
+# Security-hardened Docker Compose configuration
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+    networks:
+      - maf-network
+
+  api:
+    build:
+      context: ../../
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      - HTTPS_ONLY=true
+      - TLS_CERT_PATH=/certs/server.crt
+      - TLS_KEY_PATH=/certs/server.key
+      - HSTS_MAX_AGE=31536000
+    volumes:
+      - ./certs:/certs:ro
+    networks:
+      - maf-network
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_SSL_MODE=require
+      - POSTGRES_SSL_CERT_FILE=/certs/server.crt
+      - POSTGRES_SSL_KEY_FILE=/certs/server.key
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./certs:/certs:ro
+      - ./postgresql/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    networks:
+      - maf-network
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --tls-port 6380
+      --tls-cert-file /certs/server.crt
+      --tls-key-file /certs/server.key
+      --tls-ca-cert-file /certs/ca.crt
+      --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+      - ./certs:/certs:ro
+    networks:
+      - maf-network
+    security_opt:
+      - no-new-privileges:true
+
+  nats:
+    image: nats:alpine
+    command: >
+      nats-server
+      --tls
+      --tlscert=/certs/server.crt
+      --tlskey=/certs/server.key
+      --tlsverify
+      --tlscacert=/certs/ca.crt
+    volumes:
+      - nats_data:/data
+      - ./certs:/certs:ro
+    networks:
+      - maf-network
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  maf-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /encrypted/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /encrypted/redis
+  nats_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /encrypted/nats

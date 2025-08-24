@@ -1,0 +1,2604 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/maf-infra  # Update with actual repository URL
+    targetRevision: main  # Update with target branch
+    path: charts/maf
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-saas.yaml  # Or appropriate environment values file
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: maf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maf
