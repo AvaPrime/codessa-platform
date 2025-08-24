@@ -88,3 +88,12 @@ ENV/
 *.iso
 *.dmg
 *.img
+
+# Secrets and credentials
+*firebase-adminsdk*.json
+*.pem
+*.key
+*.p12
+*.pfx
+.env.production
+.env.staging
