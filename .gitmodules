@@ -1,0 +1,11 @@
+[submodule "codessa"]
+	path = codessa
+	url = https://github.com/Ava-Prime/codessa.git
+
+[submodule "echoforge"]
+	path = echoforge
+	url = https://github.com/Ava-Prime/echoforge.git
+
+[submodule "echopilot"]
+	path = echopilot
+	url = https://github.com/AvaPrime/EchoPilot.git
