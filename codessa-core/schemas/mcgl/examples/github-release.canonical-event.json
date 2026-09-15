@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "event_id": "ce_githubreleaseantho001",
+  "event_type": "release",
+  "occurred_at": "2026-09-15T09:00:00Z",
+  "observed_at": "2026-09-15T09:05:00Z",
+  "source": { "adapter": "github-releases/v1", "uri": "https://github.com/example/project/releases/tag/v1.2.0", "publisher": "example", "external_id": "v1.2.0", "retrieved_at": "2026-09-15T09:05:00Z" },
+  "content": { "title": "Project v1.2.0", "body": "Adds a new MCP capability.", "content_type": "text/markdown", "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "language": "en" },
+  "entities": [{ "name": "project", "kind": "repository" }],
+  "provenance": { "raw_event_id": "raw_github_12345", "normalizer": "mcgl-github-release-normalizer", "normalizer_version": "1.0.0", "raw_payload_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+}
