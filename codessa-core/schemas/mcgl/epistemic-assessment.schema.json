@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codessa.dev/schemas/mcgl/epistemic-assessment.schema.json",
+  "title": "MCGL Epistemic Assessment",
+  "description": "A replayable evaluation of a canonical event. Scores are independent dimensions, never a replacement for evidence or provenance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assessment_id", "event_id", "assessor", "assessor_version", "assessed_at", "scores", "rationale"],
+  "properties": {
+    "assessment_id": { "type": "string", "pattern": "^ea_[A-Za-z0-9_-]{16,128}$" },
+    "event_id": { "type": "string", "pattern": "^ce_[A-Za-z0-9_-]{16,128}$" },
+    "assessor": { "type": "string", "minLength": 1 },
+    "assessor_version": { "type": "string", "minLength": 1 },
+    "assessed_at": { "type": "string", "format": "date-time" },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence", "source_trust", "novelty", "agreement", "freshness", "goal_relevance", "contradiction", "impact"],
+      "properties": {
+        "evidence": { "$ref": "#/$defs/score" }, "source_trust": { "$ref": "#/$defs/score" },
+        "novelty": { "$ref": "#/$defs/score" }, "agreement": { "$ref": "#/$defs/score" },
+        "freshness": { "$ref": "#/$defs/score" }, "goal_relevance": { "$ref": "#/$defs/score" },
+        "contradiction": { "$ref": "#/$defs/score" }, "impact": { "$ref": "#/$defs/score" }
+      }
+    },
+    "rationale": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "model_metadata": { "type": "object", "description": "Optional, non-authoritative analyzer metadata.", "additionalProperties": { "type": ["string", "number", "boolean"] } }
+  },
+  "$defs": { "score": { "type": "number", "minimum": 0, "maximum": 1 } }
+}

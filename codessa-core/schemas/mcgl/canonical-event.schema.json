@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codessa.dev/schemas/mcgl/canonical-event.schema.json",
+  "title": "MCGL Canonical Event",
+  "description": "The versioned, deterministic ABI accepted by the Codessa epistemic kernel. It records an observed external phenomenon; it does not assert derived claims.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "event_type", "occurred_at", "observed_at", "source", "content", "provenance"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "type": "string", "pattern": "^ce_[A-Za-z0-9_-]{16,128}$", "description": "Stable event identifier, derived by the adapter or event store." },
+    "event_type": { "type": "string", "enum": ["announcement", "release", "publication", "repository_change", "message", "request", "measurement", "media", "document", "observation"] },
+    "occurred_at": { "type": "string", "format": "date-time", "description": "When the source says the phenomenon occurred." },
+    "observed_at": { "type": "string", "format": "date-time", "description": "When the adapter observed the source." },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "uri", "publisher"],
+      "properties": {
+        "adapter": { "type": "string", "minLength": 1, "description": "Versioned domain adapter name, e.g. github-releases/v1." },
+        "uri": { "type": "string", "format": "uri" },
+        "publisher": { "type": "string", "minLength": 1 },
+        "external_id": { "type": "string" },
+        "retrieved_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "body", "content_hash"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "body": { "type": "string" },
+        "content_type": { "type": "string", "default": "text/plain" },
+        "content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "SHA-256 of the normalized content bytes." },
+        "language": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["person", "organization", "product", "repository", "model", "project", "place", "other"] },
+          "external_ref": { "type": "string" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_event_id", "normalizer", "normalizer_version"],
+      "properties": {
+        "raw_event_id": { "type": "string", "minLength": 1 },
+        "normalizer": { "type": "string", "minLength": 1 },
+        "normalizer_version": { "type": "string", "minLength": 1 },
+        "raw_payload_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    }
+  }
+}
